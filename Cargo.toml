@@ -1,0 +1,12 @@
+[package]
+name = "bitbang-hal"
+version = "0.1.0"
+authors = ["Paul Sajna <sajattack@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+nb = "~0.1"
+
+[dependencies.embedded-hal]
+version = "~0.2"
+features = ["unproven"]
