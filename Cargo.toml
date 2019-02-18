@@ -5,6 +5,8 @@ authors = ["Paul Sajna <sajattack@gmail.com>"]
 edition = "2018"
 description = "Implements embedded-hal traits by bitbanging"
 license = "MIT"
+repository = "https://github.com/sajattack/bitbang-hal"
+readme = "README.md"
 
 [dependencies]
 nb = "~0.1"
