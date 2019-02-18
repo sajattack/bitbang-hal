@@ -4,7 +4,7 @@ use embedded_hal::serial;
 use embedded_hal::serial::{Write, Read};
 use crate::time::Hertz;
 
-pub struct Serial<TX, /*RX,*/ Delay> 
+pub struct Serial<TX, RX, Delay> 
 where 
     TX: OutputPin,
     RX: InputPin,
