@@ -3,6 +3,8 @@ name = "bitbang-hal"
 version = "0.1.0"
 authors = ["Paul Sajna <sajattack@gmail.com>"]
 edition = "2018"
+description = "Implements embedded-hal traits by bitbanging"
+license = "MIT"
 
 [dependencies]
 nb = "~0.1"
