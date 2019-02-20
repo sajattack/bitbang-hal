@@ -7,6 +7,8 @@ description = "Implements embedded-hal traits by bitbanging"
 license = "MIT"
 repository = "https://github.com/sajattack/bitbang-hal"
 readme = "README.md"
+keywords = ["no_std", "embedded", "bitbang", "embedded-hal", "hal"]
+categories = ["embedded", "no-std"]
 
 [dependencies]
 nb = "~0.1"
