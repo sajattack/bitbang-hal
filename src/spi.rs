@@ -1,70 +1,59 @@
-use embedded_hal::spi::FullDuplex;
-use embedded_hal::spi::Mode;
-use embedded_hal::spi::Phase::*;
-use embedded_hal::spi::Polarity::*;
+use embedded_hal::spi::{FullDuplex, Mode, Phase::*, Polarity::*};
 use embedded_hal::digital::{InputPin, OutputPin};
-use embedded_hal::blocking::delay::DelayUs;
-use crate::time::Hertz;
-use nb;
+use embedded_hal::timer::{CountDown, Periodic};
+use nb::block;
 
 #[derive(Debug)]
 pub enum Error {
     Unimplemented,
 }
 
-pub struct SPI<Miso, Mosi, Sck, Delay>
+/// A Full-Duplex SPI implementation, takes 3 pins, and a timer running at 2x
+/// the desired SPI frequency.
+pub struct SPI<Miso, Mosi, Sck, Timer>
 where 
     Miso: InputPin,
     Mosi: OutputPin,
     Sck: OutputPin,
-    Delay: DelayUs<u32>
+    Timer: CountDown + Periodic,
 {
     mode: Mode,
     miso: Miso,
     mosi: Mosi,
     sck: Sck,
-    delay: Delay,
-    half_delay_us: u32,
+    timer: Timer,
 }
 
-impl <Miso, Mosi, Sck, Delay> SPI<Miso, Mosi, Sck, Delay>
+impl <Miso, Mosi, Sck, Timer> SPI<Miso, Mosi, Sck, Timer>
 where
     Miso: InputPin,
     Mosi: OutputPin,
     Sck: OutputPin,
-    Delay: DelayUs<u32>
+    Timer: CountDown + Periodic,
 {
-    pub fn new<F: Into<Hertz>>(
-        freq: F,
+    pub fn new(
         mode: Mode,
         miso: Miso,
         mosi: Mosi,
         sck: Sck,
-        delay: Delay,
+        timer: Timer,
     ) -> Self {
-        let hertz = freq.into().0;
-        let mut half_delay_us = 500_000 / hertz; 
-        // round up the delay (lower the baudrate) 
-        if 500_000 % hertz != 0 {
-            half_delay_us += 1;
-        }
         SPI {
             mode: mode,
             miso: miso,
             mosi: mosi,
             sck: sck,
-            delay: delay,
-            half_delay_us: half_delay_us
+            timer: timer,
         }
     }
 }
 
-impl<Miso, Mosi, Sck, Delay> FullDuplex<u8> for SPI<Miso, Mosi, Sck, Delay>
+impl<Miso, Mosi, Sck, Timer> FullDuplex<u8> for SPI<Miso, Mosi, Sck, Timer>
 where 
     Miso: InputPin,
     Mosi: OutputPin,
     Sck: OutputPin,
-    Delay: DelayUs<u32>
+    Timer: CountDown + Periodic
 {
     type Error = Error;
 
@@ -74,47 +63,47 @@ where
         for _bit in 0..8 {
             if self.mode.phase == CaptureOnFirstTransition {
                 if self.mode.polarity == IdleLow {
-                    self.delay.delay_us(self.half_delay_us);
+                    block!(self.timer.wait()).ok(); 
                     self.sck.set_high();
                     if self.miso.is_high() {
                         data_in = (data_in << 1) | 1
                     } else {
                         data_in = data_in << 1
                     }
-                    self.delay.delay_us(self.half_delay_us);
+                    block!(self.timer.wait()).ok(); 
                     self.sck.set_low();
                 } else {
-                    self.delay.delay_us(self.half_delay_us);
+                    block!(self.timer.wait()).ok(); 
                     self.sck.set_low();
                     if self.miso.is_high() {
                         data_in = (data_in << 1) | 1
                     } else {
                         data_in = data_in << 1
                     }
-                    self.delay.delay_us(self.half_delay_us);
+                    block!(self.timer.wait()).ok(); 
                     self.sck.set_high();
                 }
             } else {
                 if self.mode.polarity == IdleLow {
                     self.sck.set_high();
-                    self.delay.delay_us(self.half_delay_us);
+                    block!(self.timer.wait()).ok(); 
                     if self.miso.is_high() {
                         data_in = (data_in << 1) | 1
                     } else {
                         data_in = data_in << 1
                     }
                     self.sck.set_low();
-                    self.delay.delay_us(self.half_delay_us);
+                    block!(self.timer.wait()).ok(); 
                 } else {
                     self.sck.set_low();
-                    self.delay.delay_us(self.half_delay_us);
+                    block!(self.timer.wait()).ok(); 
                     if self.miso.is_high() {
                         data_in = (data_in << 1) | 1
                     } else {
                         data_in = data_in << 1
                     }
                     self.sck.set_high();
-                    self.delay.delay_us(self.half_delay_us);
+                    block!(self.timer.wait()).ok(); 
                 }
             }
         }
@@ -132,27 +121,27 @@ where
             }
             if self.mode.phase == CaptureOnFirstTransition {
                 if self.mode.polarity == IdleLow {
-                    self.delay.delay_us(self.half_delay_us);
+                    block!(self.timer.wait()).ok(); 
                     self.sck.set_high();
-                    self.delay.delay_us(self.half_delay_us);
+                    block!(self.timer.wait()).ok(); 
                     self.sck.set_low();
                 } else {
-                    self.delay.delay_us(self.half_delay_us);
+                    block!(self.timer.wait()).ok(); 
                     self.sck.set_low();
-                    self.delay.delay_us(self.half_delay_us);
+                    block!(self.timer.wait()).ok(); 
                     self.sck.set_high();
                 }
             } else {
                 if self.mode.polarity == IdleLow {
                     self.sck.set_high();
-                    self.delay.delay_us(self.half_delay_us);
+                    block!(self.timer.wait()).ok(); 
                     self.sck.set_low();
-                    self.delay.delay_us(self.half_delay_us);
+                    block!(self.timer.wait()).ok(); 
                 } else {
                     self.sck.set_low();
-                    self.delay.delay_us(self.half_delay_us);
+                    block!(self.timer.wait()).ok(); 
                     self.sck.set_high();
-                    self.delay.delay_us(self.half_delay_us);
+                    block!(self.timer.wait()).ok(); 
                 }
             }
             data_out <<= 1;
