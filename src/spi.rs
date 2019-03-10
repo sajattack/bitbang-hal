@@ -149,3 +149,23 @@ where
         Ok(())
     }
 }
+impl<Miso, Mosi, Sck, Timer> 
+    embedded_hal::blocking::spi::transfer::Default<u8> 
+    for SPI<Miso, Mosi, Sck, Timer>
+where 
+    Miso: InputPin,
+    Mosi: OutputPin,
+    Sck: OutputPin,
+    Timer: CountDown + Periodic
+{}
+impl<Miso, Mosi, Sck, Timer> 
+    embedded_hal::blocking::spi::write::Default<u8> 
+    for SPI<Miso, Mosi, Sck, Timer>
+where 
+    Miso: InputPin,
+    Mosi: OutputPin,
+    Sck: OutputPin,
+    Timer: CountDown + Periodic
+{}
+
+
