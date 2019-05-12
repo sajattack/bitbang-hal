@@ -22,6 +22,7 @@ where
     mosi: Mosi,
     sck: Sck,
     timer: Timer,
+    read_val: u8, 
 }
 
 impl <Miso, Mosi, Sck, Timer> SPI<Miso, Mosi, Sck, Timer>
@@ -44,6 +45,7 @@ where
             mosi: mosi,
             sck: sck,
             timer: timer,
+            read_val: 0,
         }
     }
 }
@@ -58,56 +60,7 @@ where
     type Error = Error;
 
     fn read(&mut self) -> nb::Result<u8, Error> {
-        self.mosi.set_low();
-        let mut data_in: u8 = 0;
-        for _bit in 0..8 {
-            if self.mode.phase == CaptureOnFirstTransition {
-                if self.mode.polarity == IdleLow {
-                    block!(self.timer.wait()).ok(); 
-                    self.sck.set_high();
-                    if self.miso.is_high() {
-                        data_in = (data_in << 1) | 1
-                    } else {
-                        data_in = data_in << 1
-                    }
-                    block!(self.timer.wait()).ok(); 
-                    self.sck.set_low();
-                } else {
-                    block!(self.timer.wait()).ok(); 
-                    self.sck.set_low();
-                    if self.miso.is_high() {
-                        data_in = (data_in << 1) | 1
-                    } else {
-                        data_in = data_in << 1
-                    }
-                    block!(self.timer.wait()).ok(); 
-                    self.sck.set_high();
-                }
-            } else {
-                if self.mode.polarity == IdleLow {
-                    self.sck.set_high();
-                    block!(self.timer.wait()).ok(); 
-                    if self.miso.is_high() {
-                        data_in = (data_in << 1) | 1
-                    } else {
-                        data_in = data_in << 1
-                    }
-                    self.sck.set_low();
-                    block!(self.timer.wait()).ok(); 
-                } else {
-                    self.sck.set_low();
-                    block!(self.timer.wait()).ok(); 
-                    if self.miso.is_high() {
-                        data_in = (data_in << 1) | 1
-                    } else {
-                        data_in = data_in << 1
-                    }
-                    self.sck.set_high();
-                    block!(self.timer.wait()).ok(); 
-                }
-            }
-        }
-        Ok(data_in)
+        Ok(self.read_val)
     }
 
     fn send(&mut self, byte: u8) -> nb::Result<(), Self::Error> {
@@ -118,6 +71,11 @@ where
                 self.mosi.set_high(); 
             } else {
                 self.mosi.set_low();
+            }
+            if self.miso.is_high() {
+                self.read_val = (self.read_val << 1) | 1
+            } else {
+                self.read_val = self.read_val << 1
             }
             if self.mode.phase == CaptureOnFirstTransition {
                 if self.mode.polarity == IdleLow {
@@ -167,5 +125,3 @@ where
     Sck: OutputPin,
     Timer: CountDown + Periodic
 {}
-
-
