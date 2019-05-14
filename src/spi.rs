@@ -5,7 +5,7 @@ use nb::block;
 
 #[derive(Debug)]
 pub enum Error {
-    Unimplemented,
+    NoData,
 }
 
 /// A Full-Duplex SPI implementation, takes 3 pins, and a timer running at 2x
@@ -22,6 +22,7 @@ where
     mosi: Mosi,
     sck: Sck,
     timer: Timer,
+    read_val: Option<u8>, 
 }
 
 impl <Miso, Mosi, Sck, Timer> SPI<Miso, Mosi, Sck, Timer>
@@ -44,6 +45,15 @@ where
             mosi: mosi,
             sck: sck,
             timer: timer,
+            read_val: None,
+        }
+    }
+
+    fn read_bit(&mut self) {
+        if self.miso.is_high() {
+            self.read_val = Some((self.read_val.unwrap_or(0) << 1) | 1);
+        } else {
+            self.read_val = Some(self.read_val.unwrap_or(0) << 1);
         }
     }
 }
@@ -58,56 +68,10 @@ where
     type Error = Error;
 
     fn read(&mut self) -> nb::Result<u8, Error> {
-        self.mosi.set_low();
-        let mut data_in: u8 = 0;
-        for _bit in 0..8 {
-            if self.mode.phase == CaptureOnFirstTransition {
-                if self.mode.polarity == IdleLow {
-                    block!(self.timer.wait()).ok(); 
-                    self.sck.set_high();
-                    if self.miso.is_high() {
-                        data_in = (data_in << 1) | 1
-                    } else {
-                        data_in = data_in << 1
-                    }
-                    block!(self.timer.wait()).ok(); 
-                    self.sck.set_low();
-                } else {
-                    block!(self.timer.wait()).ok(); 
-                    self.sck.set_low();
-                    if self.miso.is_high() {
-                        data_in = (data_in << 1) | 1
-                    } else {
-                        data_in = data_in << 1
-                    }
-                    block!(self.timer.wait()).ok(); 
-                    self.sck.set_high();
-                }
-            } else {
-                if self.mode.polarity == IdleLow {
-                    self.sck.set_high();
-                    block!(self.timer.wait()).ok(); 
-                    if self.miso.is_high() {
-                        data_in = (data_in << 1) | 1
-                    } else {
-                        data_in = data_in << 1
-                    }
-                    self.sck.set_low();
-                    block!(self.timer.wait()).ok(); 
-                } else {
-                    self.sck.set_low();
-                    block!(self.timer.wait()).ok(); 
-                    if self.miso.is_high() {
-                        data_in = (data_in << 1) | 1
-                    } else {
-                        data_in = data_in << 1
-                    }
-                    self.sck.set_high();
-                    block!(self.timer.wait()).ok(); 
-                }
-            }
+        match self.read_val {
+            Some(val) => Ok(val),
+            None => Err(nb::Error::Other(Error::NoData))
         }
-        Ok(data_in)
     }
 
     fn send(&mut self, byte: u8) -> nb::Result<(), Self::Error> {
@@ -123,11 +87,13 @@ where
                 if self.mode.polarity == IdleLow {
                     block!(self.timer.wait()).ok(); 
                     self.sck.set_high();
+                    self.read_bit();
                     block!(self.timer.wait()).ok(); 
                     self.sck.set_low();
                 } else {
                     block!(self.timer.wait()).ok(); 
                     self.sck.set_low();
+                    self.read_bit();
                     block!(self.timer.wait()).ok(); 
                     self.sck.set_high();
                 }
@@ -135,11 +101,13 @@ where
                 if self.mode.polarity == IdleLow {
                     self.sck.set_high();
                     block!(self.timer.wait()).ok(); 
+                    self.read_bit();
                     self.sck.set_low();
                     block!(self.timer.wait()).ok(); 
                 } else {
                     self.sck.set_low();
                     block!(self.timer.wait()).ok(); 
+                    self.read_bit();
                     self.sck.set_high();
                     block!(self.timer.wait()).ok(); 
                 }
@@ -167,5 +135,3 @@ where
     Sck: OutputPin,
     Timer: CountDown + Periodic
 {}
-
-
