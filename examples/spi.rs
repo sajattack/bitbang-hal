@@ -5,14 +5,15 @@
 use panic_halt;
 
 use metro_m4 as hal;
-use embedded_hal;
 use hal::clock::GenericClockController;
 use hal::delay::Delay;
 use hal::prelude::*;
 use hal::{entry, CorePeripherals, Peripherals};
 use hal::timer::TimerCounter;
 use nb::block;
-use bitbang_hal;
+
+use bitbang_hal::spi::SPI;
+use bitbang_hal::spi::MODE_0;
 
 #[entry]
 fn main() -> ! {
@@ -39,12 +40,7 @@ fn main() -> ! {
     let mosi = pins.mosi.into_push_pull_output(&mut pins.port);
     let sck = pins.sck.into_push_pull_output(&mut pins.port);
 
-    let mode = embedded_hal::spi::Mode {
-        polarity: embedded_hal::spi::Polarity::IdleLow,
-        phase: embedded_hal::spi::Phase::CaptureOnFirstTransition,
-    };
-    let mut spi = bitbang_hal::spi::SPI::new(mode, miso, mosi, sck, timer);
-
+    let mut spi = SPI::new(MODE_0, miso, mosi, sck, timer);
     let mut delay = Delay::new(core.SYST, &mut clocks);
 
     loop {
