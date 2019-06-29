@@ -61,17 +61,13 @@ use nb::block;
 
 /// I2C error
 #[derive(Debug, Eq, PartialEq)]
-pub enum Error {
+pub enum Error<E> {
+    /// gpio error
+    Bus(E),
     /// No ack received
     NoAck,
     /// Invalid input
     InvalidData,
-    /// SDA pin error
-    SDAFailure,
-    /// SCL pin error
-    SCLFailure,
-    /// Timer error
-    CLKFailure,
 }
 
 /// I2C structure
@@ -86,136 +82,116 @@ where
     clk: CLK,
 }
 
-impl<SCL, SDA, CLK> I2cBB<SCL, SDA, CLK>
+impl<SCL, SDA, CLK, E> I2cBB<SCL, SDA, CLK>
 where
-    SCL: OutputPin,
-    SDA: OutputPin + InputPin,
+    SCL: OutputPin<Error = E>,
+    SDA: OutputPin<Error = E> + InputPin<Error = E>,
     CLK: CountDown + Periodic,
 {
     pub fn new(scl: SCL, sda: SDA, clk: CLK) -> Self {
         I2cBB { scl, sda, clk }
     }
 
-    fn scl_set_low(&mut self) -> Result<(), Error> {
-        self.scl.set_low().map_err(|_| Error::SCLFailure)
-    }
+    fn i2c_start(&mut self) -> Result<(), crate::i2c::Error<E>> {
+        self.scl.set_high().map_err(Error::Bus)?;
+        self.sda.set_high().map_err(Error::Bus)?;
+        block!(self.clk.wait()).ok();
 
-    fn sda_set_low(&mut self) -> Result<(), Error> {
-        self.sda.set_low().map_err(|_| Error::SDAFailure)
-    }
+        self.sda.set_low().map_err(Error::Bus)?;
+        block!(self.clk.wait()).ok();
 
-    fn scl_set_high(&mut self) -> Result<(), Error> {
-        self.scl.set_high().map_err(|_| Error::SCLFailure)
-    }
-
-    fn sda_set_high(&mut self) -> Result<(), Error> {
-        self.sda.set_high().map_err(|_| Error::SDAFailure)
-    }
-
-    fn clk_wait(&mut self) -> Result<(), Error> {
-        block!(self.clk.wait()).map_err(|_| Error::CLKFailure)
-    }
-
-    fn i2c_start(&mut self) -> Result<(), Error> {
-        self.scl_set_high()?;
-        self.sda_set_high()?;
-        self.clk_wait()?;
-
-        self.sda_set_low()?;
-        self.clk_wait()?;
-
-        self.scl_set_low()?;
-        self.clk_wait()?;
+        self.sda.set_low().map_err(Error::Bus)?;
+        block!(self.clk.wait()).ok();
 
         Ok(())
     }
 
-    fn i2c_stop(&mut self) -> Result<(), Error> {
-        self.scl_set_high()?;
-        self.clk_wait()?;
+    fn i2c_stop(&mut self) -> Result<(), crate::i2c::Error<E>> {
+        self.sda.set_high().map_err(Error::Bus)?;
+        block!(self.clk.wait()).ok();
 
-        self.sda_set_high()?;
-        self.clk_wait()?;
+        self.sda.set_high().map_err(Error::Bus)?;
+        block!(self.clk.wait()).ok();
 
         Ok(())
     }
 
-    fn i2c_is_ack(&mut self) -> Result<bool, Error> {
-        self.sda_set_high()?;
-        self.scl_set_high()?;
-        self.clk_wait()?;
+    fn i2c_is_ack(&mut self) -> Result<bool, crate::i2c::Error<E>> {
+        self.sda.set_high().map_err(Error::Bus)?;
+        self.sda.set_high().map_err(Error::Bus)?;
+        block!(self.clk.wait()).ok();
 
-        let ack = self.sda.is_low().map_err(|_| Error::SDAFailure)?;
+        let ack = self.sda.is_low().map_err(Error::Bus)?;
 
-        self.scl_set_low()?;
-        self.sda_set_low()?;
-        self.clk_wait()?;
+        self.sda.set_low().map_err(Error::Bus)?;
+        self.sda.set_low().map_err(Error::Bus)?;
+        block!(self.clk.wait()).ok();
 
         Ok(ack)
     }
 
-    fn i2c_read_byte(&mut self, ack: bool) -> Result<u8, Error> {
+    fn i2c_read_byte(&mut self, ack: bool) -> Result<u8, crate::i2c::Error<E>> {
         let mut byte: u8 = 0;
 
-        self.sda_set_high()?;
+        self.sda.set_high().map_err(Error::Bus)?;
 
         for i in 0..8 {
-            self.scl_set_high()?;
-            self.clk_wait()?;
+            self.sda.set_high().map_err(Error::Bus)?;
+            block!(self.clk.wait()).ok();
 
-            if self.sda.is_high().map_err(|_| Error::SDAFailure)? {
+            if self.sda.is_high().map_err(Error::Bus)? {
                 byte |= 1 << (7 - i);
             }
 
-            self.scl_set_low()?;
-            self.clk_wait()?;
+            self.sda.set_low().map_err(Error::Bus)?;
+            block!(self.clk.wait()).ok();
         }
 
         if ack {
-            self.sda_set_low()?;
+            self.sda.set_low().map_err(Error::Bus)?;
         } else {
-            self.sda_set_high()?;
+            self.sda.set_high().map_err(Error::Bus)?;
         }
 
-        self.scl_set_high()?;
-        self.clk_wait()?;
+        self.sda.set_high().map_err(Error::Bus)?;
+        block!(self.clk.wait()).ok();
 
-        self.scl_set_low()?;
-        self.sda_set_low()?;
-        self.clk_wait()?;
+        self.sda.set_low().map_err(Error::Bus)?;
+        self.sda.set_low().map_err(Error::Bus)?;
+        block!(self.clk.wait()).ok();
 
         Ok(byte)
     }
 
-    fn i2c_write_byte(&mut self, byte: u8) -> Result<(), Error> {
+    fn i2c_write_byte(&mut self, byte: u8) -> Result<(), crate::i2c::Error<E>> {
         for bit in 0..8 {
             let val = (byte >> (7 - bit)) & 0b1;
 
             if val == 1 {
-                self.sda_set_high()?;
+                self.sda.set_high().map_err(Error::Bus)?;
             } else {
-                self.sda_set_low()?;
+                self.sda.set_low().map_err(Error::Bus)?;
             }
 
-            self.scl_set_high()?;
-            self.clk_wait()?;
+            self.sda.set_high().map_err(Error::Bus)?;
+            block!(self.clk.wait()).ok();
 
-            self.scl_set_low()?;
-            self.sda_set_low()?;
-            self.clk_wait()?;
+            self.sda.set_low().map_err(Error::Bus)?;
+            self.sda.set_low().map_err(Error::Bus)?;
+            block!(self.clk.wait()).ok();
         }
 
         Ok(())
     }
 }
 
-impl<SCL, SDA, CLK> Write for I2cBB<SCL, SDA, CLK>
+impl<SCL, SDA, CLK, E> Write for I2cBB<SCL, SDA, CLK>
 where
-    SCL: OutputPin,
-    SDA: OutputPin + InputPin,
+    SCL: OutputPin<Error = E>,
+    SDA: OutputPin<Error = E> + InputPin<Error = E>,
     CLK: CountDown + Periodic,
 {
-    type Error = Error;
+    type Error  = crate::i2c::Error<E>;
 
     fn write(&mut self, addr: u8, output: &[u8]) -> Result<(), Self::Error> {
         if output.is_empty() {
@@ -247,13 +223,13 @@ where
     }
 }
 
-impl<SCL, SDA, CLK> Read for I2cBB<SCL, SDA, CLK>
+impl<SCL, SDA, CLK, E> Read for I2cBB<SCL, SDA, CLK>
 where
-    SCL: OutputPin,
-    SDA: OutputPin + InputPin,
+    SCL: OutputPin<Error = E>,
+    SDA: OutputPin<Error = E> + InputPin<Error = E>,
     CLK: CountDown + Periodic,
 {
-    type Error = Error;
+    type Error  = crate::i2c::Error<E>;
 
     fn read(&mut self, addr: u8, input: &mut [u8]) -> Result<(), Self::Error> {
         if input.is_empty() {
@@ -281,13 +257,13 @@ where
     }
 }
 
-impl<SCL, SDA, CLK> WriteRead for I2cBB<SCL, SDA, CLK>
+impl<SCL, SDA, CLK, E> WriteRead for I2cBB<SCL, SDA, CLK>
 where
-    SCL: OutputPin,
-    SDA: OutputPin + InputPin,
+    SCL: OutputPin<Error = E>,
+    SDA: OutputPin<Error = E> + InputPin<Error = E>,
     CLK: CountDown + Periodic,
 {
-    type Error = Error;
+    type Error  = crate::i2c::Error<E>;
 
     fn write_read(&mut self, addr: u8, output: &[u8], input: &mut [u8]) -> Result<(), Self::Error> {
         if output.is_empty() || input.is_empty() {
