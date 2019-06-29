@@ -1,7 +1,7 @@
 pub use embedded_hal::spi::{MODE_0, MODE_1, MODE_2, MODE_3};
 
-use embedded_hal::spi::{FullDuplex, Mode, Phase::*, Polarity::*};
 use embedded_hal::digital::{InputPin, OutputPin};
+use embedded_hal::spi::{FullDuplex, Mode};
 use embedded_hal::timer::{CountDown, Periodic};
 use nb::block;
 
@@ -103,44 +103,47 @@ where
             };
 
             if out_bit == 1 {
-                self.mosi.set_high(); 
+                self.mosi.set_high();
             } else {
                 self.mosi.set_low();
             }
 
-            if self.mode.phase == CaptureOnFirstTransition {
-                if self.mode.polarity == IdleLow {
-                    block!(self.timer.wait()).ok(); 
+            match self.mode {
+                MODE_0 => {
+                    block!(self.timer.wait()).ok();
                     self.sck.set_high();
                     self.read_bit();
-                    block!(self.timer.wait()).ok(); 
+                    block!(self.timer.wait()).ok();
                     self.sck.set_low();
-                } else {
-                    block!(self.timer.wait()).ok(); 
-                    self.sck.set_low();
-                    self.read_bit();
-                    block!(self.timer.wait()).ok(); 
+                },
+                MODE_1 => {
                     self.sck.set_high();
-                }
-            } else {
-                if self.mode.polarity == IdleLow {
-                    self.sck.set_high();
-                    block!(self.timer.wait()).ok(); 
+                    block!(self.timer.wait()).ok();
                     self.read_bit();
                     self.sck.set_low();
-                    block!(self.timer.wait()).ok(); 
-                } else {
+                    block!(self.timer.wait()).ok();
+                },
+                MODE_2 => {
+                    block!(self.timer.wait()).ok();
                     self.sck.set_low();
-                    block!(self.timer.wait()).ok(); 
+                    self.read_bit();
+                    block!(self.timer.wait()).ok();
+                    self.sck.set_high();
+                },
+                MODE_3 => {
+                    self.sck.set_low();
+                    block!(self.timer.wait()).ok();
                     self.read_bit();
                     self.sck.set_high();
-                    block!(self.timer.wait()).ok(); 
+                    block!(self.timer.wait()).ok();
                 }
             }
         }
+
         Ok(())
     }
 }
+
 impl<Miso, Mosi, Sck, Timer> 
     embedded_hal::blocking::spi::transfer::Default<u8> 
     for SPI<Miso, Mosi, Sck, Timer>
@@ -150,6 +153,7 @@ where
     Sck: OutputPin,
     Timer: CountDown + Periodic
 {}
+
 impl<Miso, Mosi, Sck, Timer> 
     embedded_hal::blocking::spi::write::Default<u8> 
     for SPI<Miso, Mosi, Sck, Timer>
