@@ -1,11 +1,26 @@
-use embedded_hal::spi::{FullDuplex, Mode, Phase::*, Polarity::*};
+pub use embedded_hal::spi::{MODE_0, MODE_1, MODE_2, MODE_3};
+
 use embedded_hal::digital::{InputPin, OutputPin};
+use embedded_hal::spi::{FullDuplex, Mode};
 use embedded_hal::timer::{CountDown, Periodic};
 use nb::block;
 
 #[derive(Debug)]
 pub enum Error {
     NoData,
+}
+
+#[derive(Debug)]
+pub enum BitOrder {
+    MSBFirst,
+    LSBFirst,
+}
+
+impl Default for BitOrder {
+    /// Default bit order: MSB first
+    fn default() -> Self {
+        BitOrder::MSBFirst
+    }
 }
 
 /// A Full-Duplex SPI implementation, takes 3 pins, and a timer running at 2x
@@ -23,6 +38,7 @@ where
     sck: Sck,
     timer: Timer,
     read_val: Option<u8>, 
+    bit_order: BitOrder,
 }
 
 impl <Miso, Mosi, Sck, Timer> SPI<Miso, Mosi, Sck, Timer>
@@ -46,7 +62,12 @@ where
             sck: sck,
             timer: timer,
             read_val: None,
+            bit_order: BitOrder::default(),
         }
+    }
+
+    pub fn set_bit_order(&mut self, order: BitOrder) {
+        self.bit_order = order;
     }
 
     fn read_bit(&mut self) {
@@ -75,48 +96,54 @@ where
     }
 
     fn send(&mut self, byte: u8) -> nb::Result<(), Self::Error> {
-        let mut data_out = byte;
-        for _bit in 0..8 {
-            let out_bit = (data_out >> 7) & 1;
+        for bit in 0..8 {
+            let out_bit = match self.bit_order {
+                BitOrder::MSBFirst => (byte >> (7 - bit)) & 0b1,
+                BitOrder::LSBFirst => (byte >> bit) & 0b1,
+            };
+
             if out_bit == 1 {
-                self.mosi.set_high(); 
+                self.mosi.set_high();
             } else {
                 self.mosi.set_low();
             }
-            if self.mode.phase == CaptureOnFirstTransition {
-                if self.mode.polarity == IdleLow {
-                    block!(self.timer.wait()).ok(); 
+
+            match self.mode {
+                MODE_0 => {
+                    block!(self.timer.wait()).ok();
                     self.sck.set_high();
                     self.read_bit();
-                    block!(self.timer.wait()).ok(); 
+                    block!(self.timer.wait()).ok();
                     self.sck.set_low();
-                } else {
-                    block!(self.timer.wait()).ok(); 
-                    self.sck.set_low();
-                    self.read_bit();
-                    block!(self.timer.wait()).ok(); 
+                },
+                MODE_1 => {
                     self.sck.set_high();
-                }
-            } else {
-                if self.mode.polarity == IdleLow {
-                    self.sck.set_high();
-                    block!(self.timer.wait()).ok(); 
+                    block!(self.timer.wait()).ok();
                     self.read_bit();
                     self.sck.set_low();
-                    block!(self.timer.wait()).ok(); 
-                } else {
+                    block!(self.timer.wait()).ok();
+                },
+                MODE_2 => {
+                    block!(self.timer.wait()).ok();
                     self.sck.set_low();
-                    block!(self.timer.wait()).ok(); 
+                    self.read_bit();
+                    block!(self.timer.wait()).ok();
+                    self.sck.set_high();
+                },
+                MODE_3 => {
+                    self.sck.set_low();
+                    block!(self.timer.wait()).ok();
                     self.read_bit();
                     self.sck.set_high();
-                    block!(self.timer.wait()).ok(); 
+                    block!(self.timer.wait()).ok();
                 }
             }
-            data_out <<= 1;
         }
+
         Ok(())
     }
 }
+
 impl<Miso, Mosi, Sck, Timer> 
     embedded_hal::blocking::spi::transfer::Default<u8> 
     for SPI<Miso, Mosi, Sck, Timer>
@@ -126,6 +153,7 @@ where
     Sck: OutputPin,
     Timer: CountDown + Periodic
 {}
+
 impl<Miso, Mosi, Sck, Timer> 
     embedded_hal::blocking::spi::write::Default<u8> 
     for SPI<Miso, Mosi, Sck, Timer>
