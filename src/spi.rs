@@ -1,12 +1,13 @@
 pub use embedded_hal::spi::{MODE_0, MODE_1, MODE_2, MODE_3};
 
-use embedded_hal::digital::{InputPin, OutputPin};
+use embedded_hal::digital::v2::{InputPin, OutputPin};
 use embedded_hal::spi::{FullDuplex, Mode};
 use embedded_hal::timer::{CountDown, Periodic};
 use nb::block;
 
 #[derive(Debug)]
-pub enum Error {
+pub enum Error<E> {
+    Bus(E),
     NoData,
 }
 
@@ -41,11 +42,11 @@ where
     bit_order: BitOrder,
 }
 
-impl <Miso, Mosi, Sck, Timer> SPI<Miso, Mosi, Sck, Timer>
+impl <Miso, Mosi, Sck, Timer, E> SPI<Miso, Mosi, Sck, Timer>
 where
-    Miso: InputPin,
-    Mosi: OutputPin,
-    Sck: OutputPin,
+    Miso: InputPin<Error = E>,
+    Mosi: OutputPin<Error = E>,
+    Sck: OutputPin<Error = E>,
     Timer: CountDown + Periodic,
 {
     pub fn new(
@@ -56,11 +57,11 @@ where
         timer: Timer,
     ) -> Self {
         SPI {
-            mode: mode,
-            miso: miso,
-            mosi: mosi,
-            sck: sck,
-            timer: timer,
+            mode,
+            miso,
+            mosi,
+            sck,
+            timer,
             read_val: None,
             bit_order: BitOrder::default(),
         }
@@ -70,28 +71,30 @@ where
         self.bit_order = order;
     }
 
-    fn read_bit(&mut self) {
-        if self.miso.is_high() {
+    fn read_bit(&mut self) -> nb::Result<(), crate::spi::Error<E>> {
+        if self.miso.is_high().map_err(Error::Bus)? {
             self.read_val = Some((self.read_val.unwrap_or(0) << 1) | 1);
+            Ok(())
         } else {
             self.read_val = Some(self.read_val.unwrap_or(0) << 1);
+            Ok(())
         }
     }
 }
 
-impl<Miso, Mosi, Sck, Timer> FullDuplex<u8> for SPI<Miso, Mosi, Sck, Timer>
+impl<Miso, Mosi, Sck, Timer, E> FullDuplex<u8> for SPI<Miso, Mosi, Sck, Timer>
 where 
-    Miso: InputPin,
-    Mosi: OutputPin,
-    Sck: OutputPin,
+    Miso: InputPin<Error = E>,
+    Mosi: OutputPin<Error = E>,
+    Sck: OutputPin<Error = E>,
     Timer: CountDown + Periodic
 {
-    type Error = Error;
+    type Error  = crate::spi::Error<E>;
 
-    fn read(&mut self) -> nb::Result<u8, Error> {
+    fn read(&mut self) -> nb::Result<u8, Self::Error> {
         match self.read_val {
             Some(val) => Ok(val),
-            None => Err(nb::Error::Other(Error::NoData))
+            None => Err(nb::Error::Other(crate::spi::Error::NoData))
         }
     }
 
@@ -103,38 +106,38 @@ where
             };
 
             if out_bit == 1 {
-                self.mosi.set_high();
+                self.mosi.set_high().map_err(Error::Bus)?;
             } else {
-                self.mosi.set_low();
+                self.mosi.set_low().map_err(Error::Bus)?;
             }
 
             match self.mode {
                 MODE_0 => {
                     block!(self.timer.wait()).ok();
-                    self.sck.set_high();
-                    self.read_bit();
+                    self.sck.set_high().map_err(Error::Bus)?;
+                    self.read_bit()?;
                     block!(self.timer.wait()).ok();
-                    self.sck.set_low();
+                    self.sck.set_low().map_err(Error::Bus)?;
                 },
                 MODE_1 => {
-                    self.sck.set_high();
+                    self.sck.set_high().map_err(Error::Bus)?;
                     block!(self.timer.wait()).ok();
-                    self.read_bit();
-                    self.sck.set_low();
+                    self.read_bit()?;
+                    self.sck.set_low().map_err(Error::Bus)?;
                     block!(self.timer.wait()).ok();
                 },
                 MODE_2 => {
                     block!(self.timer.wait()).ok();
-                    self.sck.set_low();
-                    self.read_bit();
+                    self.sck.set_low().map_err(Error::Bus)?;
+                    self.read_bit()?;
                     block!(self.timer.wait()).ok();
-                    self.sck.set_high();
+                    self.sck.set_high().map_err(Error::Bus)?;
                 },
                 MODE_3 => {
-                    self.sck.set_low();
+                    self.sck.set_low().map_err(Error::Bus)?;
                     block!(self.timer.wait()).ok();
-                    self.read_bit();
-                    self.sck.set_high();
+                    self.read_bit()?;
+                    self.sck.set_high().map_err(Error::Bus)?;
                     block!(self.timer.wait()).ok();
                 }
             }
@@ -144,22 +147,22 @@ where
     }
 }
 
-impl<Miso, Mosi, Sck, Timer> 
+impl<Miso, Mosi, Sck, Timer, E>
     embedded_hal::blocking::spi::transfer::Default<u8> 
     for SPI<Miso, Mosi, Sck, Timer>
 where 
-    Miso: InputPin,
-    Mosi: OutputPin,
-    Sck: OutputPin,
+    Miso: InputPin<Error = E>,
+    Mosi: OutputPin<Error = E>,
+    Sck: OutputPin<Error = E>,
     Timer: CountDown + Periodic
 {}
 
-impl<Miso, Mosi, Sck, Timer> 
+impl<Miso, Mosi, Sck, Timer, E>
     embedded_hal::blocking::spi::write::Default<u8> 
     for SPI<Miso, Mosi, Sck, Timer>
 where 
-    Miso: InputPin,
-    Mosi: OutputPin,
-    Sck: OutputPin,
+    Miso: InputPin<Error = E>,
+    Mosi: OutputPin<Error = E>,
+    Sck: OutputPin<Error = E>,
     Timer: CountDown + Periodic
 {}
