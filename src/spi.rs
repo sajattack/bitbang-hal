@@ -1,7 +1,7 @@
 pub use embedded_hal::spi::{MODE_0, MODE_1, MODE_2, MODE_3};
 
 use embedded_hal::digital::v2::{InputPin, OutputPin};
-use embedded_hal::spi::{FullDuplex, Mode};
+use embedded_hal::spi::{FullDuplex, Mode, Polarity};
 use embedded_hal::timer::{CountDown, Periodic};
 use nb::block;
 
@@ -56,7 +56,7 @@ where
         sck: Sck,
         timer: Timer,
     ) -> Self {
-        SPI {
+        let mut spi = SPI {
             mode,
             miso,
             mosi,
@@ -64,7 +64,14 @@ where
             timer,
             read_val: None,
             bit_order: BitOrder::default(),
-        }
+        };
+
+        match mode.polarity {
+            Polarity::IdleLow => spi.sck.set_low(),
+            Polarity::IdleHigh => spi.sck.set_high(),
+        }.unwrap_or(());
+
+        spi
     }
 
     pub fn set_bit_order(&mut self, order: BitOrder) {
