@@ -1,3 +1,5 @@
+//! Serial Peripheral Interface
+
 pub use embedded_hal::spi::{MODE_0, MODE_1, MODE_2, MODE_3};
 
 use embedded_hal::digital::v2::{InputPin, OutputPin};
