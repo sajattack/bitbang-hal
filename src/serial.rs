@@ -1,3 +1,5 @@
+//! Serial communication (USART)
+
 use embedded_hal::digital::v2::{OutputPin, InputPin};
 use embedded_hal::timer::{CountDown, Periodic};
 use embedded_hal::serial;
