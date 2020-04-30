@@ -4,14 +4,14 @@
 #[allow(unused)]
 use panic_halt;
 
-use metro_m4 as hal;
+use bitbang_hal;
 use hal::clock::GenericClockController;
 use hal::delay::Delay;
 use hal::prelude::*;
-use hal::{entry, CorePeripherals, Peripherals};
 use hal::timer::TimerCounter;
+use hal::{entry, CorePeripherals, Peripherals};
+use metro_m4 as hal;
 use nb::block;
-use bitbang_hal;
 
 #[entry]
 fn main() -> ! {
@@ -27,11 +27,8 @@ fn main() -> ! {
 
     let gclk0 = clocks.gclk0();
     let timer_clock = clocks.tc2_tc3(&gclk0).unwrap();
-    let mut timer = TimerCounter::tc3_(
-        &timer_clock, 
-        peripherals.TC3,
-    &mut peripherals.MCLK);
-    timer.start(115200.hz()); 
+    let mut timer = TimerCounter::tc3_(&timer_clock, peripherals.TC3, &mut peripherals.MCLK);
+    timer.start(115200.hz());
 
     let mut pins = hal::Pins::new(peripherals.PORT);
     let rx = pins.d0.into_pull_up_input(&mut pins.port);

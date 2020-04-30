@@ -29,7 +29,7 @@ impl Default for BitOrder {
 /// A Full-Duplex SPI implementation, takes 3 pins, and a timer running at 2x
 /// the desired SPI frequency.
 pub struct SPI<Miso, Mosi, Sck, Timer>
-where 
+where
     Miso: InputPin,
     Mosi: OutputPin,
     Sck: OutputPin,
@@ -40,24 +40,18 @@ where
     mosi: Mosi,
     sck: Sck,
     timer: Timer,
-    read_val: Option<u8>, 
+    read_val: Option<u8>,
     bit_order: BitOrder,
 }
 
-impl <Miso, Mosi, Sck, Timer, E> SPI<Miso, Mosi, Sck, Timer>
+impl<Miso, Mosi, Sck, Timer, E> SPI<Miso, Mosi, Sck, Timer>
 where
     Miso: InputPin<Error = E>,
     Mosi: OutputPin<Error = E>,
     Sck: OutputPin<Error = E>,
     Timer: CountDown + Periodic,
 {
-    pub fn new(
-        mode: Mode,
-        miso: Miso,
-        mosi: Mosi,
-        sck: Sck,
-        timer: Timer,
-    ) -> Self {
+    pub fn new(mode: Mode, miso: Miso, mosi: Mosi, sck: Sck, timer: Timer) -> Self {
         let mut spi = SPI {
             mode,
             miso,
@@ -71,7 +65,8 @@ where
         match mode.polarity {
             Polarity::IdleLow => spi.sck.set_low(),
             Polarity::IdleHigh => spi.sck.set_high(),
-        }.unwrap_or(());
+        }
+        .unwrap_or(());
 
         spi
     }
@@ -92,18 +87,18 @@ where
 }
 
 impl<Miso, Mosi, Sck, Timer, E> FullDuplex<u8> for SPI<Miso, Mosi, Sck, Timer>
-where 
+where
     Miso: InputPin<Error = E>,
     Mosi: OutputPin<Error = E>,
     Sck: OutputPin<Error = E>,
-    Timer: CountDown + Periodic
+    Timer: CountDown + Periodic,
 {
-    type Error  = crate::spi::Error<E>;
+    type Error = crate::spi::Error<E>;
 
     fn read(&mut self) -> nb::Result<u8, Self::Error> {
         match self.read_val {
             Some(val) => Ok(val),
-            None => Err(nb::Error::Other(crate::spi::Error::NoData))
+            None => Err(nb::Error::Other(crate::spi::Error::NoData)),
         }
     }
 
@@ -127,21 +122,21 @@ where
                     self.read_bit()?;
                     block!(self.timer.wait()).ok();
                     self.sck.set_low().map_err(Error::Bus)?;
-                },
+                }
                 MODE_1 => {
                     self.sck.set_high().map_err(Error::Bus)?;
                     block!(self.timer.wait()).ok();
                     self.read_bit()?;
                     self.sck.set_low().map_err(Error::Bus)?;
                     block!(self.timer.wait()).ok();
-                },
+                }
                 MODE_2 => {
                     block!(self.timer.wait()).ok();
                     self.sck.set_low().map_err(Error::Bus)?;
                     self.read_bit()?;
                     block!(self.timer.wait()).ok();
                     self.sck.set_high().map_err(Error::Bus)?;
-                },
+                }
                 MODE_3 => {
                     self.sck.set_low().map_err(Error::Bus)?;
                     block!(self.timer.wait()).ok();
@@ -156,22 +151,22 @@ where
     }
 }
 
-impl<Miso, Mosi, Sck, Timer, E>
-    embedded_hal::blocking::spi::transfer::Default<u8> 
+impl<Miso, Mosi, Sck, Timer, E> embedded_hal::blocking::spi::transfer::Default<u8>
     for SPI<Miso, Mosi, Sck, Timer>
-where 
+where
     Miso: InputPin<Error = E>,
     Mosi: OutputPin<Error = E>,
     Sck: OutputPin<Error = E>,
-    Timer: CountDown + Periodic
-{}
+    Timer: CountDown + Periodic,
+{
+}
 
-impl<Miso, Mosi, Sck, Timer, E>
-    embedded_hal::blocking::spi::write::Default<u8> 
+impl<Miso, Mosi, Sck, Timer, E> embedded_hal::blocking::spi::write::Default<u8>
     for SPI<Miso, Mosi, Sck, Timer>
-where 
+where
     Miso: InputPin<Error = E>,
     Mosi: OutputPin<Error = E>,
     Sck: OutputPin<Error = E>,
-    Timer: CountDown + Periodic
-{}
+    Timer: CountDown + Periodic,
+{
+}
