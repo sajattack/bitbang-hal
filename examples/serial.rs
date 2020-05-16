@@ -1,47 +1,44 @@
 #![no_std]
 #![no_main]
 
-#[allow(unused)]
-use panic_halt;
-
-use bitbang_hal;
-use hal::clock::GenericClockController;
-use hal::delay::Delay;
-use hal::prelude::*;
-use hal::timer::TimerCounter;
-use hal::{entry, CorePeripherals, Peripherals};
-use metro_m4 as hal;
 use nb::block;
+use panic_halt as _;
+
+use cortex_m_rt::entry;
+use stm32f1xx_hal::delay::Delay;
+use stm32f1xx_hal::timer::Timer;
+use stm32f1xx_hal::{prelude::*, stm32};
 
 #[entry]
 fn main() -> ! {
-    let mut peripherals = Peripherals::take().unwrap();
-    let core = CorePeripherals::take().unwrap();
-    let mut clocks = GenericClockController::with_external_32kosc(
-        peripherals.GCLK,
-        &mut peripherals.MCLK,
-        &mut peripherals.OSC32KCTRL,
-        &mut peripherals.OSCCTRL,
-        &mut peripherals.NVMCTRL,
-    );
+    let pdev = stm32::Peripherals::take().unwrap();
+    let core = cortex_m::Peripherals::take().unwrap();
 
-    let gclk0 = clocks.gclk0();
-    let timer_clock = clocks.tc2_tc3(&gclk0).unwrap();
-    let mut timer = TimerCounter::tc3_(&timer_clock, peripherals.TC3, &mut peripherals.MCLK);
-    timer.start(115200.hz());
+    let mut flash = pdev.FLASH.constrain();
+    let mut rcc = pdev.RCC.constrain();
+    let mut gpiob = pdev.GPIOB.split(&mut rcc.apb2);
 
-    let mut pins = hal::Pins::new(peripherals.PORT);
-    let rx = pins.d0.into_pull_up_input(&mut pins.port);
-    let tx = pins.d1.into_push_pull_output(&mut pins.port);
+    let clocks = rcc
+        .cfgr
+        .use_hse(8.mhz())
+        .sysclk(32.mhz())
+        .pclk1(16.mhz())
+        .freeze(&mut flash.acr);
 
-    let mut serial = bitbang_hal::serial::Serial::new(tx, rx, timer);
+    let mut delay = Delay::new(core.SYST, clocks);
+    let tmr = Timer::tim3(pdev.TIM3, &clocks, &mut rcc.apb1).start_count_down(115_200.hz());
 
-    let mut delay = Delay::new(core.SYST, &mut clocks);
+    // use 5V tolerant pins to test with UART-to-USB connector
+    let tx = gpiob.pb10.into_push_pull_output(&mut gpiob.crh);
+    let rx = gpiob.pb11.into_floating_input(&mut gpiob.crh);
+
+    let mut serial = bitbang_hal::serial::Serial::new(tx, rx, tmr);
 
     loop {
-        for byte in b"Hello, World!" {
+        for byte in b"Hello, World!\r\n" {
             block!(serial.write(*byte)).unwrap();
         }
+
         delay.delay_ms(1000u16);
     }
 }

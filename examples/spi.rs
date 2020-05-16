@@ -1,49 +1,47 @@
 #![no_std]
 #![no_main]
 
-#[allow(unused)]
-use panic_halt;
-
-use hal::clock::GenericClockController;
-use hal::delay::Delay;
-use hal::prelude::*;
-use hal::timer::TimerCounter;
-use hal::{entry, CorePeripherals, Peripherals};
-use metro_m4 as hal;
 use nb::block;
+use panic_halt as _;
+
+use cortex_m_rt::entry;
+use stm32f1xx_hal::delay::Delay;
+use stm32f1xx_hal::timer::Timer;
+use stm32f1xx_hal::{prelude::*, stm32};
 
 use bitbang_hal::spi::MODE_0;
 use bitbang_hal::spi::SPI;
 
 #[entry]
 fn main() -> ! {
-    let mut peripherals = Peripherals::take().unwrap();
-    let core = CorePeripherals::take().unwrap();
-    let mut clocks = GenericClockController::with_external_32kosc(
-        peripherals.GCLK,
-        &mut peripherals.MCLK,
-        &mut peripherals.OSC32KCTRL,
-        &mut peripherals.OSCCTRL,
-        &mut peripherals.NVMCTRL,
-    );
+    let pdev = stm32::Peripherals::take().unwrap();
+    let core = cortex_m::Peripherals::take().unwrap();
 
-    let gclk0 = clocks.gclk0();
-    let timer_clock = clocks.tc2_tc3(&gclk0).unwrap();
-    let mut timer = TimerCounter::tc3_(&timer_clock, peripherals.TC3, &mut peripherals.MCLK);
-    timer.start(6.mhz()); // results in a SPI frequency of 3MHz
+    let mut flash = pdev.FLASH.constrain();
+    let mut rcc = pdev.RCC.constrain();
+    let mut gpioa = pdev.GPIOA.split(&mut rcc.apb2);
 
-    let mut pins = hal::Pins::new(peripherals.PORT);
-    let miso = pins.miso.into_pull_up_input(&mut pins.port);
-    let mosi = pins.mosi.into_push_pull_output(&mut pins.port);
-    let sck = pins.sck.into_push_pull_output(&mut pins.port);
+    let clocks = rcc
+        .cfgr
+        .use_hse(8.mhz())
+        .sysclk(32.mhz())
+        .pclk1(16.mhz())
+        .freeze(&mut flash.acr);
 
-    let mut spi = SPI::new(MODE_0, miso, mosi, sck, timer);
-    let mut delay = Delay::new(core.SYST, &mut clocks);
+    let mut delay = Delay::new(core.SYST, clocks);
+    let tmr = Timer::tim3(pdev.TIM3, &clocks, &mut rcc.apb1).start_count_down(6.mhz());
+
+    let miso = gpioa.pa0.into_floating_input(&mut gpioa.crl);
+    let mosi = gpioa.pa1.into_push_pull_output(&mut gpioa.crl);
+    let sck = gpioa.pa2.into_push_pull_output(&mut gpioa.crl);
+
+    let mut spi = SPI::new(MODE_0, miso, mosi, sck, tmr);
 
     loop {
         for byte in b"Hello, World!" {
             block!(spi.send(*byte)).unwrap();
         }
+
         delay.delay_ms(1000u16);
     }
 }
