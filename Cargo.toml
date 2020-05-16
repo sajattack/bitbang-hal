@@ -25,3 +25,4 @@ features = ["stm32f103", "rt", "medium"]
 cortex-m = "0.6.2"
 cortex-m-rt = "0.6.12"
 panic-halt = "0.2.0"
+eeprom24x = "0.3.0"
