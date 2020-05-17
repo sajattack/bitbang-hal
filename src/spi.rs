@@ -84,6 +84,21 @@ where
             Ok(())
         }
     }
+
+    #[inline]
+    fn set_clk_high(&mut self) -> Result<(), crate::spi::Error<E>> {
+        self.sck.set_high().map_err(Error::Bus)
+    }
+
+    #[inline]
+    fn set_clk_low(&mut self) -> Result<(), crate::spi::Error<E>> {
+        self.sck.set_low().map_err(Error::Bus)
+    }
+
+    #[inline]
+    fn wait_for_timer(&mut self) {
+        block!(self.timer.wait()).ok();
+    }
 }
 
 impl<Miso, Mosi, Sck, Timer, E> FullDuplex<u8> for SPI<Miso, Mosi, Sck, Timer>
@@ -117,32 +132,32 @@ where
 
             match self.mode {
                 MODE_0 => {
-                    block!(self.timer.wait()).ok();
-                    self.sck.set_high().map_err(Error::Bus)?;
+                    self.wait_for_timer();
+                    self.set_clk_high()?;
                     self.read_bit()?;
-                    block!(self.timer.wait()).ok();
-                    self.sck.set_low().map_err(Error::Bus)?;
+                    self.wait_for_timer();
+                    self.set_clk_low()?;
                 }
                 MODE_1 => {
-                    self.sck.set_high().map_err(Error::Bus)?;
-                    block!(self.timer.wait()).ok();
+                    self.set_clk_high()?;
+                    self.wait_for_timer();
                     self.read_bit()?;
-                    self.sck.set_low().map_err(Error::Bus)?;
-                    block!(self.timer.wait()).ok();
+                    self.set_clk_low()?;
+                    self.wait_for_timer();
                 }
                 MODE_2 => {
-                    block!(self.timer.wait()).ok();
-                    self.sck.set_low().map_err(Error::Bus)?;
+                    self.wait_for_timer();
+                    self.set_clk_low()?;
                     self.read_bit()?;
-                    block!(self.timer.wait()).ok();
-                    self.sck.set_high().map_err(Error::Bus)?;
+                    self.wait_for_timer();
+                    self.set_clk_high()?;
                 }
                 MODE_3 => {
-                    self.sck.set_low().map_err(Error::Bus)?;
-                    block!(self.timer.wait()).ok();
+                    self.set_clk_low()?;
+                    self.wait_for_timer();
                     self.read_bit()?;
-                    self.sck.set_high().map_err(Error::Bus)?;
-                    block!(self.timer.wait()).ok();
+                    self.set_clk_high()?;
+                    self.wait_for_timer();
                 }
             }
         }
