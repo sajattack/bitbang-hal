@@ -93,39 +93,39 @@ where
     }
 
     fn i2c_start(&mut self) -> Result<(), crate::i2c::Error<E>> {
-        self.scl.set_high().map_err(Error::Bus)?;
-        self.sda.set_high().map_err(Error::Bus)?;
-        block!(self.clk.wait()).ok();
+        self.set_scl_high()?;
+        self.set_sda_high()?;
+        self.wait_for_clk();
 
-        self.sda.set_low().map_err(Error::Bus)?;
-        block!(self.clk.wait()).ok();
+        self.set_sda_low()?;
+        self.wait_for_clk();
 
-        self.scl.set_low().map_err(Error::Bus)?;
-        block!(self.clk.wait()).ok();
+        self.set_scl_low()?;
+        self.wait_for_clk();
 
         Ok(())
     }
 
     fn i2c_stop(&mut self) -> Result<(), crate::i2c::Error<E>> {
-        self.scl.set_high().map_err(Error::Bus)?;
-        block!(self.clk.wait()).ok();
+        self.set_scl_high()?;
+        self.wait_for_clk();
 
-        self.sda.set_high().map_err(Error::Bus)?;
-        block!(self.clk.wait()).ok();
+        self.set_sda_high()?;
+        self.wait_for_clk();
 
         Ok(())
     }
 
     fn i2c_is_ack(&mut self) -> Result<bool, crate::i2c::Error<E>> {
-        self.sda.set_high().map_err(Error::Bus)?;
-        self.scl.set_high().map_err(Error::Bus)?;
-        block!(self.clk.wait()).ok();
+        self.set_sda_high()?;
+        self.set_scl_high()?;
+        self.wait_for_clk();
 
         let ack = self.sda.is_low().map_err(Error::Bus)?;
 
-        self.scl.set_low().map_err(Error::Bus)?;
-        self.sda.set_low().map_err(Error::Bus)?;
-        block!(self.clk.wait()).ok();
+        self.set_scl_low()?;
+        self.set_sda_low()?;
+        self.wait_for_clk();
 
         Ok(ack)
     }
@@ -133,32 +133,32 @@ where
     fn i2c_read_byte(&mut self, ack: bool) -> Result<u8, crate::i2c::Error<E>> {
         let mut byte: u8 = 0;
 
-        self.sda.set_high().map_err(Error::Bus)?;
+        self.set_sda_high()?;
 
         for i in 0..8 {
-            self.scl.set_high().map_err(Error::Bus)?;
-            block!(self.clk.wait()).ok();
+            self.set_scl_high()?;
+            self.wait_for_clk();
 
             if self.sda.is_high().map_err(Error::Bus)? {
                 byte |= 1 << (7 - i);
             }
 
-            self.scl.set_low().map_err(Error::Bus)?;
-            block!(self.clk.wait()).ok();
+            self.set_scl_low()?;
+            self.wait_for_clk();
         }
 
         if ack {
-            self.sda.set_low().map_err(Error::Bus)?;
+            self.set_sda_low()?;
         } else {
-            self.sda.set_high().map_err(Error::Bus)?;
+            self.set_sda_high()?;
         }
 
-        self.scl.set_high().map_err(Error::Bus)?;
-        block!(self.clk.wait()).ok();
+        self.set_scl_high()?;
+        self.wait_for_clk();
 
-        self.scl.set_low().map_err(Error::Bus)?;
-        self.sda.set_low().map_err(Error::Bus)?;
-        block!(self.clk.wait()).ok();
+        self.set_scl_low()?;
+        self.set_sda_low()?;
+        self.wait_for_clk();
 
         Ok(byte)
     }
@@ -168,20 +168,72 @@ where
             let val = (byte >> (7 - bit)) & 0b1;
 
             if val == 1 {
-                self.sda.set_high().map_err(Error::Bus)?;
+                self.set_sda_high()?;
             } else {
-                self.sda.set_low().map_err(Error::Bus)?;
+                self.set_sda_low()?;
             }
 
-            self.scl.set_high().map_err(Error::Bus)?;
-            block!(self.clk.wait()).ok();
+            self.set_scl_high()?;
+            self.wait_for_clk();
 
-            self.scl.set_low().map_err(Error::Bus)?;
-            self.sda.set_low().map_err(Error::Bus)?;
-            block!(self.clk.wait()).ok();
+            self.set_scl_low()?;
+            self.set_sda_low()?;
+            self.wait_for_clk();
         }
 
         Ok(())
+    }
+
+    #[inline]
+    fn read_from_slave(&mut self, input: &mut [u8]) -> Result<(), crate::i2c::Error<E>> {
+        for i in 0..input.len() {
+            let should_send_ack = i != (input.len() - 1);
+            input[i] = self.i2c_read_byte(should_send_ack)?;
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn write_to_slave(&mut self, output: &[u8]) -> Result<(), crate::i2c::Error<E>> {
+        for byte in output {
+            self.i2c_write_byte(*byte)?;
+            self.check_ack()?;
+        }
+        Ok(())
+    }
+
+    #[inline]
+    fn set_scl_high(&mut self) -> Result<(), crate::i2c::Error<E>> {
+        self.scl.set_high().map_err(Error::Bus)
+    }
+
+    #[inline]
+    fn set_scl_low(&mut self) -> Result<(), crate::i2c::Error<E>> {
+        self.scl.set_low().map_err(Error::Bus)
+    }
+
+    #[inline]
+    fn set_sda_high(&mut self) -> Result<(), crate::i2c::Error<E>> {
+        self.sda.set_high().map_err(Error::Bus)
+    }
+
+    #[inline]
+    fn set_sda_low(&mut self) -> Result<(), crate::i2c::Error<E>> {
+        self.sda.set_low().map_err(Error::Bus)
+    }
+
+    #[inline]
+    fn wait_for_clk(&mut self) {
+        block!(self.clk.wait()).ok();
+    }
+
+    #[inline]
+    fn check_ack(&mut self) -> Result<(), crate::i2c::Error<E>> {
+        if !self.i2c_is_ack()? {
+            Err(Error::NoAck)
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -203,23 +255,12 @@ where
 
         // SAD + W
         self.i2c_write_byte((addr << 1) | 0x0)?;
-        if !self.i2c_is_ack()? {
-            return Err(Error::NoAck);
-        }
+        self.check_ack()?;
 
-        // write output to slave
-        for byte in output {
-            self.i2c_write_byte(*byte)?;
-
-            if !self.i2c_is_ack()? {
-                return Err(Error::NoAck);
-            }
-        }
+        self.write_to_slave(output)?;
 
         // SP
-        self.i2c_stop()?;
-
-        Ok(())
+        self.i2c_stop()
     }
 }
 
@@ -241,19 +282,12 @@ where
 
         // SAD + R
         self.i2c_write_byte((addr << 1) | 0x1)?;
-        if !self.i2c_is_ack()? {
-            return Err(Error::NoAck);
-        }
+        self.check_ack()?;
 
-        // read bytes from slave
-        for i in 0..input.len() {
-            input[i] = self.i2c_read_byte(i != (input.len() - 1))?;
-        }
+        self.read_from_slave(input)?;
 
         // SP
-        self.i2c_stop()?;
-
-        Ok(())
+        self.i2c_stop()
     }
 }
 
@@ -275,36 +309,20 @@ where
 
         // SAD + W
         self.i2c_write_byte((addr << 1) | 0x0)?;
-        if !self.i2c_is_ack()? {
-            return Err(Error::NoAck);
-        }
+        self.check_ack()?;
 
-        // write output to slave
-        for byte in output {
-            self.i2c_write_byte(*byte)?;
-
-            if !self.i2c_is_ack()? {
-                return Err(Error::NoAck);
-            }
-        }
+        self.write_to_slave(output)?;
 
         // SR
         self.i2c_start()?;
 
         // SAD + R
         self.i2c_write_byte((addr << 1) | 0x1)?;
-        if !self.i2c_is_ack()? {
-            return Err(Error::NoAck);
-        }
+        self.check_ack()?;
 
-        // read output from slave
-        for i in 0..input.len() {
-            input[i] = self.i2c_read_byte(i != (input.len() - 1))?;
-        }
+        self.read_from_slave(input)?;
 
         // SP
-        self.i2c_stop()?;
-
-        Ok(())
+        self.i2c_stop()
     }
 }
