@@ -110,6 +110,7 @@ where
 {
     type Error = crate::spi::Error<E>;
 
+    #[inline]
     fn read(&mut self) -> nb::Result<u8, Self::Error> {
         match self.read_val {
             Some(val) => Ok(val),
