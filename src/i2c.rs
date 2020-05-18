@@ -130,24 +130,24 @@ where
         Ok(ack)
     }
 
-    fn i2c_read_byte(&mut self, ack: bool) -> Result<u8, crate::i2c::Error<E>> {
+    fn i2c_read_byte(&mut self, should_send_ack: bool) -> Result<u8, crate::i2c::Error<E>> {
         let mut byte: u8 = 0;
 
         self.set_sda_high()?;
 
-        for i in 0..8 {
+        for bit_offset in 0..8 {
             self.set_scl_high()?;
             self.wait_for_clk();
 
             if self.sda.is_high().map_err(Error::Bus)? {
-                byte |= 1 << (7 - i);
+                byte |= 1 << (7 - bit_offset);
             }
 
             self.set_scl_low()?;
             self.wait_for_clk();
         }
 
-        if ack {
+        if should_send_ack {
             self.set_sda_low()?;
         } else {
             self.set_sda_high()?;
@@ -164,10 +164,10 @@ where
     }
 
     fn i2c_write_byte(&mut self, byte: u8) -> Result<(), crate::i2c::Error<E>> {
-        for bit in 0..8 {
-            let val = (byte >> (7 - bit)) & 0b1;
+        for bit_offset in 0..8 {
+            let out_bit = (byte >> (7 - bit_offset)) & 0b1;
 
-            if val == 1 {
+            if out_bit == 1 {
                 self.set_sda_high()?;
             } else {
                 self.set_sda_low()?;
