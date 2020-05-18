@@ -16,31 +16,28 @@
   Here is a sample code for LM75A I2C temperature sensor
   on Blue Pill or any other stm32f1xx board:
 
-  ```rust
-   extern crate stm32f1xx_hal as hal;
-   use hal::prelude::*;
-   use hal::timer::Timer;
+  ```no_run
+    use stm32f1xx_hal as hal;
+    use hal::{prelude::*, timer::Timer, stm32};
+    use lm75::{Lm75, SlaveAddr};
+    use bitbang_hal;
 
-   extern crate lm75;
-   use lm75::{Lm75, SlaveAddr};
+    // ...
 
-   use bitbang_hal;
+    let pdev = stm32::Peripherals::take().unwrap();
 
-   ...
+    let mut flash = pdev.FLASH.constrain();
+    let mut rcc = pdev.RCC.constrain();
+    let mut gpioa = pdev.GPIOA.split(&mut rcc.apb2);
 
-   let dp = hal::stm32::Peripherals::take().unwrap();
-   let mut rcc = dp.RCC.constrain();
-   let mut gpioa = dp.GPIOA.split(&mut rcc.apb2);
-
-   let mut flash = dp.FLASH.constrain();
-   let clocks = rcc
+    let clocks = rcc
         .cfgr
         .use_hse(8.mhz())
         .sysclk(32.mhz())
         .pclk1(16.mhz())
         .freeze(&mut flash.acr);
 
-    let tmr = Timer::tim3(dp.TIM3, 200.khz(), clocks, &mut rcc.apb1);
+    let tmr = Timer::tim3(pdev.TIM3, &clocks, &mut rcc.apb1).start_count_down(200.khz());
     let scl = gpioa.pa1.into_open_drain_output(&mut gpioa.crl);
     let sda = gpioa.pa2.into_open_drain_output(&mut gpioa.crl);
 
@@ -48,10 +45,8 @@
     let mut sensor = Lm75::new(i2c, SlaveAddr::default());
     let temp = sensor.read_temperature().unwrap();
 
-    ...
-
+    //...
   ```
-
 */
 
 use embedded_hal::blocking::i2c::{Read, Write, WriteRead};
