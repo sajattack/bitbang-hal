@@ -30,6 +30,11 @@ where
     pub fn new(tx: TX, rx: RX, timer: Timer) -> Self {
         Serial { tx, rx, timer }
     }
+
+    #[inline]
+    fn wait_for_timer(&mut self) {
+        block!(self.timer.wait()).ok();
+    }
 }
 
 impl<TX, RX, Timer, E> serial::Write<u8> for Serial<TX, RX, Timer>
@@ -43,7 +48,7 @@ where
     fn write(&mut self, byte: u8) -> nb::Result<(), Self::Error> {
         let mut data_out = byte;
         self.tx.set_low().map_err(Error::Bus)?; // start bit
-        block!(self.timer.wait()).ok();
+        self.wait_for_timer();
         for _bit in 0..8 {
             if data_out & 1 == 1 {
                 self.tx.set_high().map_err(Error::Bus)?;
@@ -51,10 +56,10 @@ where
                 self.tx.set_low().map_err(Error::Bus)?;
             }
             data_out >>= 1;
-            block!(self.timer.wait()).ok();
+            self.wait_for_timer();
         }
         self.tx.set_high().map_err(Error::Bus)?; // stop bit
-        block!(self.timer.wait()).ok();
+        self.wait_for_timer();
         Ok(())
     }
 
@@ -75,16 +80,16 @@ where
         let mut data_in = 0;
         // wait for start bit
         while self.rx.is_high().map_err(Error::Bus)? {}
-        block!(self.timer.wait()).ok();
+        self.wait_for_timer();
         for _bit in 0..8 {
             data_in <<= 1;
             if self.rx.is_high().map_err(Error::Bus)? {
                 data_in |= 1
             }
-            block!(self.timer.wait()).ok();
+            self.wait_for_timer();
         }
         // wait for stop bit
-        block!(self.timer.wait()).ok();
+        self.wait_for_timer();
         Ok(data_in)
     }
 }

@@ -76,13 +76,29 @@ where
     }
 
     fn read_bit(&mut self) -> nb::Result<(), crate::spi::Error<E>> {
-        if self.miso.is_high().map_err(Error::Bus)? {
-            self.read_val = Some((self.read_val.unwrap_or(0) << 1) | 1);
-            Ok(())
+        let is_miso_high = self.miso.is_high().map_err(Error::Bus)?;
+        let shifted_value = self.read_val.unwrap_or(0) << 1;
+        if is_miso_high {
+            self.read_val = Some(shifted_value | 1);
         } else {
-            self.read_val = Some(self.read_val.unwrap_or(0) << 1);
-            Ok(())
+            self.read_val = Some(shifted_value);
         }
+        Ok(())
+    }
+
+    #[inline]
+    fn set_clk_high(&mut self) -> Result<(), crate::spi::Error<E>> {
+        self.sck.set_high().map_err(Error::Bus)
+    }
+
+    #[inline]
+    fn set_clk_low(&mut self) -> Result<(), crate::spi::Error<E>> {
+        self.sck.set_low().map_err(Error::Bus)
+    }
+
+    #[inline]
+    fn wait_for_timer(&mut self) {
+        block!(self.timer.wait()).ok();
     }
 }
 
@@ -95,6 +111,7 @@ where
 {
     type Error = crate::spi::Error<E>;
 
+    #[inline]
     fn read(&mut self) -> nb::Result<u8, Self::Error> {
         match self.read_val {
             Some(val) => Ok(val),
@@ -103,10 +120,10 @@ where
     }
 
     fn send(&mut self, byte: u8) -> nb::Result<(), Self::Error> {
-        for bit in 0..8 {
+        for bit_offset in 0..8 {
             let out_bit = match self.bit_order {
-                BitOrder::MSBFirst => (byte >> (7 - bit)) & 0b1,
-                BitOrder::LSBFirst => (byte >> bit) & 0b1,
+                BitOrder::MSBFirst => (byte >> (7 - bit_offset)) & 0b1,
+                BitOrder::LSBFirst => (byte >> bit_offset) & 0b1,
             };
 
             if out_bit == 1 {
@@ -117,32 +134,32 @@ where
 
             match self.mode {
                 MODE_0 => {
-                    block!(self.timer.wait()).ok();
-                    self.sck.set_high().map_err(Error::Bus)?;
+                    self.wait_for_timer();
+                    self.set_clk_high()?;
                     self.read_bit()?;
-                    block!(self.timer.wait()).ok();
-                    self.sck.set_low().map_err(Error::Bus)?;
+                    self.wait_for_timer();
+                    self.set_clk_low()?;
                 }
                 MODE_1 => {
-                    self.sck.set_high().map_err(Error::Bus)?;
-                    block!(self.timer.wait()).ok();
+                    self.set_clk_high()?;
+                    self.wait_for_timer();
                     self.read_bit()?;
-                    self.sck.set_low().map_err(Error::Bus)?;
-                    block!(self.timer.wait()).ok();
+                    self.set_clk_low()?;
+                    self.wait_for_timer();
                 }
                 MODE_2 => {
-                    block!(self.timer.wait()).ok();
-                    self.sck.set_low().map_err(Error::Bus)?;
+                    self.wait_for_timer();
+                    self.set_clk_low()?;
                     self.read_bit()?;
-                    block!(self.timer.wait()).ok();
-                    self.sck.set_high().map_err(Error::Bus)?;
+                    self.wait_for_timer();
+                    self.set_clk_high()?;
                 }
                 MODE_3 => {
-                    self.sck.set_low().map_err(Error::Bus)?;
-                    block!(self.timer.wait()).ok();
+                    self.set_clk_low()?;
+                    self.wait_for_timer();
                     self.read_bit()?;
-                    self.sck.set_high().map_err(Error::Bus)?;
-                    block!(self.timer.wait()).ok();
+                    self.set_clk_high()?;
+                    self.wait_for_timer();
                 }
             }
         }
