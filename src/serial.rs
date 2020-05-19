@@ -1,15 +1,26 @@
 //! Serial communication (USART)
+//!
+//! This implementation consumes the following hardware resources: 
+//! - Periodic timer to mark clock cycles
+//! - Output GPIO pin for transmission (TX)
+//! - Input GPIO pin for reception (RX)
+//!
+//! The timer must be configured to twice the desired communication frequency.
+//!
 
 use embedded_hal::digital::v2::{InputPin, OutputPin};
 use embedded_hal::serial;
 use embedded_hal::timer::{CountDown, Periodic};
 use nb::block;
 
+/// Serial communication error type
 #[derive(Debug)]
 pub enum Error<E> {
+    /// Bus error
     Bus(E),
 }
 
+/// Bit banging serial communication (USART) device
 pub struct Serial<TX, RX, Timer>
 where
     TX: OutputPin,
@@ -27,6 +38,7 @@ where
     RX: InputPin<Error = E>,
     Timer: CountDown + Periodic,
 {
+    /// Create instance
     pub fn new(tx: TX, rx: RX, timer: Timer) -> Self {
         Serial { tx, rx, timer }
     }
