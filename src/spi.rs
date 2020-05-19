@@ -1,6 +1,6 @@
 //! Serial Peripheral Interface
 //!
-//! This implementation consumes the following hardware resources: 
+//! This implementation consumes the following hardware resources:
 //! - Periodic timer to mark clock cycles
 //! - Output GPIO pin for clock signal (SCLK)
 //! - Output GPIO pin for data transmission (Master Output Slave Input - MOSI)

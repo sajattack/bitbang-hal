@@ -1,6 +1,6 @@
 //! Serial communication (USART)
 //!
-//! This implementation consumes the following hardware resources: 
+//! This implementation consumes the following hardware resources:
 //! - Periodic timer to mark clock cycles
 //! - Output GPIO pin for transmission (TX)
 //! - Input GPIO pin for reception (RX)
