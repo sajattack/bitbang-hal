@@ -1,4 +1,17 @@
 //! Serial Peripheral Interface
+//!
+//! This implementation consumes the following hardware resources: 
+//! - Periodic timer to mark clock cycles
+//! - Output GPIO pin for clock signal (SCLK)
+//! - Output GPIO pin for data transmission (Master Output Slave Input - MOSI)
+//! - Input GPIO pin for data reception (Master Input Slave Output - MISO)
+//!
+//! The timer must be configured to twice the desired communication frequency.
+//!
+//! SS/CS (slave select) must be handled independently.
+//!
+//! MSB-first and LSB-first bit orders are supported.
+//!
 
 pub use embedded_hal::spi::{MODE_0, MODE_1, MODE_2, MODE_3};
 
@@ -7,15 +20,21 @@ use embedded_hal::spi::{FullDuplex, Mode, Polarity};
 use embedded_hal::timer::{CountDown, Periodic};
 use nb::block;
 
+/// Error type
 #[derive(Debug)]
 pub enum Error<E> {
+    /// Communication error
     Bus(E),
+    /// Attempted read without input data
     NoData,
 }
 
+/// Transmission bit order
 #[derive(Debug)]
 pub enum BitOrder {
+    /// Most significant bit first
     MSBFirst,
+    /// Least significant bit first
     LSBFirst,
 }
 
@@ -51,6 +70,7 @@ where
     Sck: OutputPin<Error = E>,
     Timer: CountDown + Periodic,
 {
+    /// Create instance
     pub fn new(mode: Mode, miso: Miso, mosi: Mosi, sck: Sck, timer: Timer) -> Self {
         let mut spi = SPI {
             mode,
