@@ -91,6 +91,7 @@ where
         spi
     }
 
+    /// Set transmission bit order
     pub fn set_bit_order(&mut self, order: BitOrder) {
         self.bit_order = order;
     }
