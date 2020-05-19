@@ -1,15 +1,16 @@
 /*!
   # Synchronous implementation of embedded-hal I2C traits based on GPIO bitbang
 
-
   This implementation consumes the following hardware resources:
-  periodic timer to mark clock cycles and
-  two gpio pins for SDA and SCL lines.
+  - A periodic timer to mark clock cycles
+  - Two GPIO pins for SDA and SCL lines.
+
+  Note that the current implementation does not support I2C clock stretching.
 
   ## Hardware requirements
 
-  1. Configure gpio pins as Open-Drain outputs
-  2. Configure timer frequency to be twice as required i2c clock
+  1. Configure GPIO pins as Open-Drain outputs.
+  2. Configure timer frequency to be twice the desired I2C clock frequency.
 
   ## Blue Pill example
 
@@ -57,7 +58,7 @@ use nb::block;
 /// I2C error
 #[derive(Debug, Eq, PartialEq)]
 pub enum Error<E> {
-    /// gpio error
+    /// GPIO error
     Bus(E),
     /// No ack received
     NoAck,
@@ -65,7 +66,7 @@ pub enum Error<E> {
     InvalidData,
 }
 
-/// I2C structure
+/// Bit banging I2C device
 pub struct I2cBB<SCL, SDA, CLK>
 where
     SCL: OutputPin,
@@ -83,6 +84,7 @@ where
     SDA: OutputPin<Error = E> + InputPin<Error = E>,
     CLK: CountDown + Periodic,
 {
+    /// Create instance
     pub fn new(scl: SCL, sda: SDA, clk: CLK) -> Self {
         I2cBB { scl, sda, clk }
     }
