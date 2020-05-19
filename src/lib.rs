@@ -8,6 +8,7 @@
 //! See usage examples in the examples folder in the crate sources
 
 #![no_std]
+#[deny(missing_docs)]
 
 pub mod i2c;
 pub mod serial;
