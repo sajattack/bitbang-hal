@@ -112,7 +112,8 @@ where
     ///```
     ///
     pub fn access_timer<F>(&mut self, f: F)
-        where F: FnOnce(Timer) -> Timer
+    where
+        F: FnOnce(Timer) -> Timer,
     {
         // This is unsafe because we create a zeroed timer.
         // Its safety is guaranteed, though, because the zeroed timer is never used.
@@ -125,7 +126,6 @@ where
             self.timer = f(timer);
         }
     }
-
 
     fn read_bit(&mut self) -> nb::Result<(), crate::spi::Error<E>> {
         let is_miso_high = self.miso.is_high().map_err(Error::Bus)?;
