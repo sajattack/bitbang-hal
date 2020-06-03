@@ -96,6 +96,34 @@ where
         self.bit_order = order;
     }
 
+    /// Allows for an access to the timer type.
+    /// This can be used to change the speed.
+    ///
+    /// In closure you get ownership of the timer
+    /// so you can destruct it and build it up again if necessary.
+    ///
+    /// # Example
+    ///
+    /// ```Rust
+    ///spi.access_timer(|mut timer| {
+    ///    timer.set_freq(4.mhz());
+    ///    timer
+    ///});
+    ///```
+    ///
+    pub fn access_timer<F>(&mut self, f: F)
+    where
+        F: FnOnce(Timer) -> Timer,
+    {
+        // Create a zeroed timer.
+        // This is unsafe, but its safety is guaranteed, though, because the zeroed timer is never used.
+        let timer = unsafe { core::mem::zeroed() };
+        // Get the timer in the struct.
+        let timer = core::mem::replace(&mut self.timer, timer);
+        // Give the timer to the closure and put the result back into the struct.
+        self.timer = f(timer);
+    }
+
     fn read_bit(&mut self) -> nb::Result<(), crate::spi::Error<E>> {
         let is_miso_high = self.miso.is_high().map_err(Error::Bus)?;
         let shifted_value = self.read_val.unwrap_or(0) << 1;
