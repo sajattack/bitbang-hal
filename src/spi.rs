@@ -115,16 +115,13 @@ where
     where
         F: FnOnce(Timer) -> Timer,
     {
-        // This is unsafe because we create a zeroed timer.
-        // Its safety is guaranteed, though, because the zeroed timer is never used.
-        unsafe {
-            // Create a zeroed timer.
-            let timer = core::mem::zeroed();
-            // Get the timer in the struct.
-            let timer = core::mem::replace(&mut self.timer, timer);
-            // Give the timer to the closure and put the result back into the struct.
-            self.timer = f(timer);
-        }
+        // Create a zeroed timer.
+        // This is unsafe, but its safety is guaranteed, though, because the zeroed timer is never used.
+        let timer = unsafe { core::mem::zeroed() };
+        // Get the timer in the struct.
+        let timer = core::mem::replace(&mut self.timer, timer);
+        // Give the timer to the closure and put the result back into the struct.
+        self.timer = f(timer);
     }
 
     fn read_bit(&mut self) -> nb::Result<(), crate::spi::Error<E>> {
