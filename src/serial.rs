@@ -8,7 +8,7 @@
 //! The timer must be configured to twice the desired communication frequency.
 //!
 
-use embedded_hal::digital::v2::{InputPin, OutputPin};
+use embedded_hal::digital::{InputPin, OutputPin};
 use embedded_hal::serial;
 use embedded_hal::timer::{CountDown, Periodic};
 use nb::block;
@@ -45,7 +45,7 @@ where
 
     #[inline]
     fn wait_for_timer(&mut self) {
-        block!(self.timer.wait()).ok();
+        block!(self.timer.try_wait()).ok();
     }
 }
 
@@ -57,25 +57,25 @@ where
 {
     type Error = crate::serial::Error<E>;
 
-    fn write(&mut self, byte: u8) -> nb::Result<(), Self::Error> {
+    fn try_write(&mut self, byte: u8) -> nb::Result<(), Self::Error> {
         let mut data_out = byte;
-        self.tx.set_low().map_err(Error::Bus)?; // start bit
+        self.tx.try_set_low().map_err(Error::Bus)?; // start bit
         self.wait_for_timer();
         for _bit in 0..8 {
             if data_out & 1 == 1 {
-                self.tx.set_high().map_err(Error::Bus)?;
+                self.tx.try_set_high().map_err(Error::Bus)?;
             } else {
-                self.tx.set_low().map_err(Error::Bus)?;
+                self.tx.try_set_low().map_err(Error::Bus)?;
             }
             data_out >>= 1;
             self.wait_for_timer();
         }
-        self.tx.set_high().map_err(Error::Bus)?; // stop bit
+        self.tx.try_set_high().map_err(Error::Bus)?; // stop bit
         self.wait_for_timer();
         Ok(())
     }
 
-    fn flush(&mut self) -> nb::Result<(), Self::Error> {
+    fn try_flush(&mut self) -> nb::Result<(), Self::Error> {
         Ok(())
     }
 }
@@ -88,14 +88,14 @@ where
 {
     type Error = crate::serial::Error<E>;
 
-    fn read(&mut self) -> nb::Result<u8, Self::Error> {
+    fn try_read(&mut self) -> nb::Result<u8, Self::Error> {
         let mut data_in = 0;
         // wait for start bit
-        while self.rx.is_high().map_err(Error::Bus)? {}
+        while self.rx.try_is_high().map_err(Error::Bus)? {}
         self.wait_for_timer();
         for _bit in 0..8 {
             data_in <<= 1;
-            if self.rx.is_high().map_err(Error::Bus)? {
+            if self.rx.try_is_high().map_err(Error::Bus)? {
                 data_in |= 1
             }
             self.wait_for_timer();

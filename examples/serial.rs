@@ -36,7 +36,7 @@ fn main() -> ! {
 
     loop {
         for byte in b"Hello, World!\r\n" {
-            block!(serial.write(*byte)).unwrap();
+            block!(serial.try_write(*byte)).unwrap();
         }
 
         delay.delay_ms(1000u16);
