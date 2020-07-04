@@ -15,7 +15,7 @@
 
 pub use embedded_hal::spi::{MODE_0, MODE_1, MODE_2, MODE_3};
 
-use embedded_hal::digital::v2::{InputPin, OutputPin};
+use embedded_hal::digital::{InputPin, OutputPin};
 use embedded_hal::spi::{FullDuplex, Mode, Polarity};
 use embedded_hal::timer::{CountDown, Periodic};
 use nb::block;
@@ -83,8 +83,8 @@ where
         };
 
         match mode.polarity {
-            Polarity::IdleLow => spi.sck.set_low(),
-            Polarity::IdleHigh => spi.sck.set_high(),
+            Polarity::IdleLow => spi.sck.try_set_low(),
+            Polarity::IdleHigh => spi.sck.try_set_high(),
         }
         .unwrap_or(());
 
@@ -97,7 +97,7 @@ where
     }
 
     fn read_bit(&mut self) -> nb::Result<(), crate::spi::Error<E>> {
-        let is_miso_high = self.miso.is_high().map_err(Error::Bus)?;
+        let is_miso_high = self.miso.try_is_high().map_err(Error::Bus)?;
         let shifted_value = self.read_val.unwrap_or(0) << 1;
         if is_miso_high {
             self.read_val = Some(shifted_value | 1);
@@ -109,17 +109,17 @@ where
 
     #[inline]
     fn set_clk_high(&mut self) -> Result<(), crate::spi::Error<E>> {
-        self.sck.set_high().map_err(Error::Bus)
+        self.sck.try_set_high().map_err(Error::Bus)
     }
 
     #[inline]
     fn set_clk_low(&mut self) -> Result<(), crate::spi::Error<E>> {
-        self.sck.set_low().map_err(Error::Bus)
+        self.sck.try_set_low().map_err(Error::Bus)
     }
 
     #[inline]
     fn wait_for_timer(&mut self) {
-        block!(self.timer.wait()).ok();
+        block!(self.timer.try_wait()).ok();
     }
 }
 
@@ -133,14 +133,14 @@ where
     type Error = crate::spi::Error<E>;
 
     #[inline]
-    fn read(&mut self) -> nb::Result<u8, Self::Error> {
+    fn try_read(&mut self) -> nb::Result<u8, Self::Error> {
         match self.read_val {
             Some(val) => Ok(val),
             None => Err(nb::Error::Other(crate::spi::Error::NoData)),
         }
     }
 
-    fn send(&mut self, byte: u8) -> nb::Result<(), Self::Error> {
+    fn try_send(&mut self, byte: u8) -> nb::Result<(), Self::Error> {
         for bit_offset in 0..8 {
             let out_bit = match self.bit_order {
                 BitOrder::MSBFirst => (byte >> (7 - bit_offset)) & 0b1,
@@ -148,9 +148,9 @@ where
             };
 
             if out_bit == 1 {
-                self.mosi.set_high().map_err(Error::Bus)?;
+                self.mosi.try_set_high().map_err(Error::Bus)?;
             } else {
-                self.mosi.set_low().map_err(Error::Bus)?;
+                self.mosi.try_set_low().map_err(Error::Bus)?;
             }
 
             match self.mode {

@@ -50,8 +50,7 @@
   ```
 */
 
-use embedded_hal::blocking::i2c::{Read, Write, WriteRead};
-use embedded_hal::digital::v2::{InputPin, OutputPin};
+use embedded_hal::digital::{InputPin, OutputPin};
 use embedded_hal::timer::{CountDown, Periodic};
 use nb::block;
 
@@ -118,7 +117,7 @@ where
         self.set_scl_high()?;
         self.wait_for_clk();
 
-        let ack = self.sda.is_low().map_err(Error::Bus)?;
+        let ack = self.sda.try_is_low().map_err(Error::Bus)?;
 
         self.set_scl_low()?;
         self.set_sda_low()?;
@@ -136,7 +135,7 @@ where
             self.set_scl_high()?;
             self.wait_for_clk();
 
-            if self.sda.is_high().map_err(Error::Bus)? {
+            if self.sda.try_is_high().map_err(Error::Bus)? {
                 byte |= 1 << (7 - bit_offset);
             }
 
@@ -201,27 +200,27 @@ where
 
     #[inline]
     fn set_scl_high(&mut self) -> Result<(), crate::i2c::Error<E>> {
-        self.scl.set_high().map_err(Error::Bus)
+        self.scl.try_set_high().map_err(Error::Bus)
     }
 
     #[inline]
     fn set_scl_low(&mut self) -> Result<(), crate::i2c::Error<E>> {
-        self.scl.set_low().map_err(Error::Bus)
+        self.scl.try_set_low().map_err(Error::Bus)
     }
 
     #[inline]
     fn set_sda_high(&mut self) -> Result<(), crate::i2c::Error<E>> {
-        self.sda.set_high().map_err(Error::Bus)
+        self.sda.try_set_high().map_err(Error::Bus)
     }
 
     #[inline]
     fn set_sda_low(&mut self) -> Result<(), crate::i2c::Error<E>> {
-        self.sda.set_low().map_err(Error::Bus)
+        self.sda.try_set_low().map_err(Error::Bus)
     }
 
     #[inline]
     fn wait_for_clk(&mut self) {
-        block!(self.clk.wait()).ok();
+        block!(self.clk.try_wait()).ok();
     }
 
     #[inline]
@@ -242,7 +241,7 @@ where
 {
     type Error = crate::i2c::Error<E>;
 
-    fn write(&mut self, addr: u8, output: &[u8]) -> Result<(), Self::Error> {
+    fn try_write(&mut self, addr: u8, output: &[u8]) -> Result<(), Self::Error> {
         if output.is_empty() {
             return Ok(());
         }
@@ -269,7 +268,7 @@ where
 {
     type Error = crate::i2c::Error<E>;
 
-    fn read(&mut self, addr: u8, input: &mut [u8]) -> Result<(), Self::Error> {
+    fn try_read(&mut self, addr: u8, input: &mut [u8]) -> Result<(), Self::Error> {
         if input.is_empty() {
             return Ok(());
         }
@@ -296,7 +295,7 @@ where
 {
     type Error = crate::i2c::Error<E>;
 
-    fn write_read(&mut self, addr: u8, output: &[u8], input: &mut [u8]) -> Result<(), Self::Error> {
+    fn try_write_read(&mut self, addr: u8, output: &[u8], input: &mut [u8]) -> Result<(), Self::Error> {
         if output.is_empty() || input.is_empty() {
             return Err(Error::InvalidData);
         }

@@ -41,13 +41,13 @@ fn main() -> ! {
     for addr in addrs.iter() {
         eeprom.write_byte(*addr, byte).unwrap();
         // need to wait before next write
-        block!(delay.wait()).ok();
+        block!(delay.try_wait()).ok();
     }
 
     loop {
         for addr in addrs.iter() {
             let _ = eeprom.read_byte(*addr).unwrap();
-            block!(delay.wait()).ok();
+            block!(delay.try_wait()).ok();
         }
     }
 }
