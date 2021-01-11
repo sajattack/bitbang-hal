@@ -243,10 +243,6 @@ where
     type Error = crate::i2c::Error<E>;
 
     fn write(&mut self, addr: u8, output: &[u8]) -> Result<(), Self::Error> {
-        if output.is_empty() {
-            return Ok(());
-        }
-
         // ST
         self.i2c_start()?;
 
