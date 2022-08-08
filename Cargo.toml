@@ -11,19 +11,19 @@ keywords = ["no_std", "embedded", "bitbang", "embedded-hal", "hal"]
 categories = ["embedded", "no-std"]
 
 [dependencies]
-nb = "0.1"
+nb = "1"
 
 [dependencies.embedded-hal]
-version = "0.2.3"
+version = "0.2.7"
 features = ["unproven"]
 
 [dev-dependencies.stm32f1xx-hal]
-version = "0.5.3"
+version = "0.9"
 features = ["stm32f103", "rt", "medium"]
 
 [dev-dependencies]
-cortex-m = "0.6.2"
-cortex-m-rt = "0.6.12"
+cortex-m = "0.7"
+cortex-m-rt = "0.7"
 panic-halt = "0.2.0"
-eeprom24x = "0.3.0"
-lm75 = "0.1"
+eeprom24x = "0.5.0"
+lm75 = "0.2"

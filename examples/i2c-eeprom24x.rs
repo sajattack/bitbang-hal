@@ -8,7 +8,6 @@ use eeprom24x::Eeprom24x;
 use eeprom24x::SlaveAddr;
 
 use cortex_m_rt::entry;
-use stm32f1xx_hal::timer::Timer;
 use stm32f1xx_hal::{prelude::*, stm32};
 
 #[entry]
@@ -16,18 +15,21 @@ fn main() -> ! {
     let pdev = stm32::Peripherals::take().unwrap();
 
     let mut flash = pdev.FLASH.constrain();
-    let mut rcc = pdev.RCC.constrain();
-    let mut gpioa = pdev.GPIOA.split(&mut rcc.apb2);
+    let rcc = pdev.RCC.constrain();
+    let mut gpioa = pdev.GPIOA.split();
 
     let clocks = rcc
         .cfgr
-        .use_hse(8.mhz())
-        .sysclk(32.mhz())
-        .pclk1(16.mhz())
+        .use_hse(8.MHz())
+        .sysclk(32.MHz())
+        .pclk1(16.MHz())
         .freeze(&mut flash.acr);
 
-    let mut delay = Timer::tim2(pdev.TIM2, &clocks, &mut rcc.apb1).start_count_down(10.hz());
-    let tmr = Timer::tim3(pdev.TIM3, &clocks, &mut rcc.apb1).start_count_down(200.khz());
+    let mut delay = pdev.TIM2.counter_hz(&clocks);
+    delay.start(10.Hz()).unwrap();
+    let mut tmr = pdev.TIM3.counter_hz(&clocks);
+    tmr.start(200.kHz()).unwrap();
+
     let scl = gpioa.pa1.into_open_drain_output(&mut gpioa.crl);
     let sda = gpioa.pa2.into_open_drain_output(&mut gpioa.crl);
 

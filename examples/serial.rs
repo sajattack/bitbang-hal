@@ -5,28 +5,26 @@ use nb::block;
 use panic_halt as _;
 
 use cortex_m_rt::entry;
-use stm32f1xx_hal::delay::Delay;
-use stm32f1xx_hal::timer::Timer;
 use stm32f1xx_hal::{prelude::*, stm32};
 
 #[entry]
 fn main() -> ! {
     let pdev = stm32::Peripherals::take().unwrap();
-    let core = cortex_m::Peripherals::take().unwrap();
 
     let mut flash = pdev.FLASH.constrain();
-    let mut rcc = pdev.RCC.constrain();
-    let mut gpiob = pdev.GPIOB.split(&mut rcc.apb2);
+    let rcc = pdev.RCC.constrain();
+    let mut gpiob = pdev.GPIOB.split();
 
     let clocks = rcc
         .cfgr
-        .use_hse(8.mhz())
-        .sysclk(32.mhz())
-        .pclk1(16.mhz())
+        .use_hse(8.MHz())
+        .sysclk(32.MHz())
+        .pclk1(16.MHz())
         .freeze(&mut flash.acr);
 
-    let mut delay = Delay::new(core.SYST, clocks);
-    let tmr = Timer::tim3(pdev.TIM3, &clocks, &mut rcc.apb1).start_count_down(115_200.hz());
+    let mut delay = pdev.TIM2.delay_us(&clocks);
+    let mut tmr = pdev.TIM3.counter_hz(&clocks);
+    tmr.start(115_200.Hz()).unwrap();
 
     // use 5V tolerant pins to test with UART-to-USB connector
     let tx = gpiob.pb10.into_push_pull_output(&mut gpiob.crh);
