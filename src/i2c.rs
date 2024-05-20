@@ -89,7 +89,12 @@ where
         I2cBB { scl, sda, clk }
     }
 
-    fn i2c_start(&mut self) -> Result<(), crate::i2c::Error<E>> {
+    /// Send a raw I2C start.
+    ///
+    /// **This is a low-level control function.** For normal I2C devices,
+    /// please use the embedded-hal traits [Read], [Write], or
+    /// [WriteRead].
+    pub fn i2c_start(&mut self) -> Result<(), crate::i2c::Error<E>> {
         self.set_scl_high()?;
         self.set_sda_high()?;
         self.wait_for_clk();
@@ -103,7 +108,12 @@ where
         Ok(())
     }
 
-    fn i2c_stop(&mut self) -> Result<(), crate::i2c::Error<E>> {
+    /// Send a raw I2C stop.
+    ///
+    /// **This is a low-level control function.** For normal I2C devices,
+    /// please use the embedded-hal traits [Read], [Write], or
+    /// [WriteRead].
+    pub fn i2c_stop(&mut self) -> Result<(), crate::i2c::Error<E>> {
         self.set_scl_high()?;
         self.wait_for_clk();
 
@@ -181,8 +191,13 @@ where
         Ok(())
     }
 
+    /// Read raw bytes from the slave.
+    ///
+    /// **This is a low-level control function.** For normal I2C devices,
+    /// please use the embedded-hal traits [Read], [Write], or
+    /// [WriteRead].
     #[inline]
-    fn read_from_slave(&mut self, input: &mut [u8]) -> Result<(), crate::i2c::Error<E>> {
+    pub fn read_from_slave(&mut self, input: &mut [u8]) -> Result<(), crate::i2c::Error<E>> {
         for i in 0..input.len() {
             let should_send_ack = i != (input.len() - 1);
             input[i] = self.i2c_read_byte(should_send_ack)?;
@@ -190,8 +205,13 @@ where
         Ok(())
     }
 
+    /// Send raw bytes to the slave.
+    ///
+    /// **This is a low-level control function.** For normal I2C devices,
+    /// please use the embedded-hal traits [Read], [Write], or
+    /// [WriteRead].
     #[inline]
-    fn write_to_slave(&mut self, output: &[u8]) -> Result<(), crate::i2c::Error<E>> {
+    pub fn write_to_slave(&mut self, output: &[u8]) -> Result<(), crate::i2c::Error<E>> {
         for byte in output {
             self.i2c_write_byte(*byte)?;
             self.check_ack()?;
