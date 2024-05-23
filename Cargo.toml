@@ -1,8 +1,8 @@
 [package]
 name = "bitbang-hal"
-version = "0.3.2"
+version = "0.3.3"
 authors = ["Paul Sajna <sajattack@gmail.com>"]
-edition = "2018"
+edition = "2021"
 description = "Implements embedded-hal traits by bitbanging"
 license = "MIT"
 repository = "https://github.com/sajattack/bitbang-hal"
