@@ -58,6 +58,12 @@ where
     type Error = crate::serial::Error<E>;
 
     fn write(&mut self, byte: u8) -> nb::Result<(), Self::Error> {
+        // WORKAROUND: Since we don't cancel the timer it is possible that the timer has already
+        // overflown, in which case the first call will immediately return, with no guarantees of
+        // being aligned with the start of the count. The second call ensures that we start the
+        // timing at the right moment, since it will for sure block.
+        self.wait_for_timer();
+        self.wait_for_timer();
         let mut data_out = byte;
         self.tx.set_low().map_err(Error::Bus)?; // start bit
         self.wait_for_timer();
