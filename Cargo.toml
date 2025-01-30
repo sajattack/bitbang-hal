@@ -11,19 +11,21 @@ keywords = ["no_std", "embedded", "bitbang", "embedded-hal", "hal"]
 categories = ["embedded", "no-std"]
 
 [dependencies]
-nb = "1"
+embedded-hal = "1.0.0"
+fugit = "0.3.7"
 
-[dependencies.embedded-hal]
-version = "0.2.7"
-features = ["unproven"]
+[dependencies.embedded-hal-async]
+version = "1"
 
 [dev-dependencies.stm32f1xx-hal]
-version = "0.9"
+version = "0.10.0"
 features = ["stm32f103", "rt", "medium"]
 
 [dev-dependencies]
 cortex-m = "0.7"
 cortex-m-rt = "0.7"
 panic-halt = "0.2.0"
-eeprom24x = "0.5.0"
-lm75 = "0.2"
+eeprom24x = "0.7.1"
+lm75 = "1"
+embedded-hal-mock = { version = "0.11.1", features = ["eh1", "embedded-hal-async"] }
+tokio = { version = "1.43.0", features = ["macros", "rt"] }

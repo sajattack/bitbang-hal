@@ -8,10 +8,16 @@
 //! The timer must be configured to twice the desired communication frequency.
 //!
 
-use embedded_hal::digital::v2::{InputPin, OutputPin};
-use embedded_hal::serial;
-use embedded_hal::timer::{CountDown, Periodic};
-use nb::block;
+use core::fmt;
+use core::fmt::Debug;
+use embedded_hal::{
+    digital::{InputPin, OutputPin},
+};
+use embedded_hal_async::{
+    delay::DelayNs,
+};
+use embedded_io_async::ErrorKind;
+use fugit::{Duration, TimerRate};
 
 /// Serial communication error type
 #[derive(Debug)]
@@ -20,47 +26,71 @@ pub enum Error<E> {
     Bus(E),
 }
 
+impl<E: core::fmt::Debug> embedded_io_async::Error for Error<E> {
+    fn kind(&self) -> ErrorKind {
+        match self {
+            Error::Bus(_) => ErrorKind::Other
+        }
+    }
+}
+
 /// Bit banging serial communication (USART) device
 pub struct Serial<TX, RX, Timer>
 where
     TX: OutputPin,
     RX: InputPin,
-    Timer: CountDown + Periodic,
+    Timer: DelayNs,
 {
     tx: TX,
     rx: RX,
     timer: Timer,
+    clock_duration: Duration<u32, 1, 1_000_000>,
 }
 
 impl<TX, RX, Timer, E> Serial<TX, RX, Timer>
 where
     TX: OutputPin<Error = E>,
     RX: InputPin<Error = E>,
-    Timer: CountDown + Periodic,
+    Timer: DelayNs,
 {
     /// Create instance
-    pub fn new(tx: TX, rx: RX, timer: Timer) -> Self {
-        Serial { tx, rx, timer }
+    pub fn new(tx: TX, rx: RX, timer: Timer, frequency: TimerRate<u32, 1_000_000>) -> Self {
+        Serial {
+            tx,
+            rx,
+            timer,
+            clock_duration: frequency.into_duration(),
+        }
     }
 
     #[inline]
-    fn wait_for_timer(&mut self) {
-        block!(self.timer.wait()).ok();
+    async fn wait_for_timer(&mut self) {
+        self.timer.delay_ns(self.clock_duration.to_nanos()).await;
     }
 }
 
-impl<TX, RX, Timer, E> serial::Write<u8> for Serial<TX, RX, Timer>
+impl<TX, RX, Timer, E> embedded_io_async::ErrorType for Serial<TX, RX, Timer>
 where
     TX: OutputPin<Error = E>,
     RX: InputPin<Error = E>,
-    Timer: CountDown + Periodic,
+    Timer: DelayNs,
+    E: fmt::Debug
 {
     type Error = crate::serial::Error<E>;
+}
 
-    fn write(&mut self, byte: u8) -> nb::Result<(), Self::Error> {
+
+impl<TX, RX, Timer, E> Serial<TX, RX, Timer>
+where
+    TX: OutputPin<Error = E>,
+    RX: InputPin<Error = E>,
+    Timer: DelayNs,
+    E: core::fmt::Debug
+{
+    async fn write_byte(&mut self, byte: u8) -> Result<(), crate::serial::Error<E>> {
         let mut data_out = byte;
         self.tx.set_low().map_err(Error::Bus)?; // start bit
-        self.wait_for_timer();
+        self.wait_for_timer().await;
         for _bit in 0..8 {
             if data_out & 1 == 1 {
                 self.tx.set_high().map_err(Error::Bus)?;
@@ -68,40 +98,60 @@ where
                 self.tx.set_low().map_err(Error::Bus)?;
             }
             data_out >>= 1;
-            self.wait_for_timer();
+            self.wait_for_timer().await;
         }
         self.tx.set_high().map_err(Error::Bus)?; // stop bit
-        self.wait_for_timer();
+        self.wait_for_timer().await;
         Ok(())
     }
 
-    fn flush(&mut self) -> nb::Result<(), Self::Error> {
-        Ok(())
-    }
-}
-
-impl<TX, RX, Timer, E> serial::Read<u8> for Serial<TX, RX, Timer>
-where
-    TX: OutputPin<Error = E>,
-    RX: InputPin<Error = E>,
-    Timer: CountDown + Periodic,
-{
-    type Error = crate::serial::Error<E>;
-
-    fn read(&mut self) -> nb::Result<u8, Self::Error> {
+    async fn read_byte(&mut self) -> Result<u8, crate::serial::Error<E>> {
         let mut data_in = 0;
         // wait for start bit
         while self.rx.is_high().map_err(Error::Bus)? {}
-        self.wait_for_timer();
+        self.wait_for_timer().await;
         for _bit in 0..8 {
             data_in <<= 1;
             if self.rx.is_high().map_err(Error::Bus)? {
                 data_in |= 1
             }
-            self.wait_for_timer();
+            self.wait_for_timer().await;
         }
         // wait for stop bit
-        self.wait_for_timer();
+        self.wait_for_timer().await;
         Ok(data_in)
+    }
+}
+impl<TX, RX, Timer, E> embedded_io_async::Write for Serial<TX, RX, Timer>
+where
+    TX: OutputPin<Error = E>,
+    RX: InputPin<Error = E>,
+    Timer: DelayNs,
+    E: core::fmt::Debug
+{
+    async fn write(&mut self, buf: &[u8]) -> Result<usize, Self::Error> {
+        for byte in buf {
+            self.write_byte(*byte).await?;
+        }
+        Ok(buf.len())
+    }
+
+    async fn flush(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
+
+impl<TX, RX, Timer, E> embedded_io_async::Read for Serial<TX, RX, Timer>
+where
+    TX: OutputPin<Error = E>,
+    RX: InputPin<Error = E>,
+    Timer: DelayNs,
+    E: core::fmt::Debug
+{
+    async fn read(&mut self, buf: &mut [u8]) -> Result<usize, Self::Error> {
+        for byte in buf.iter_mut() {
+            *byte = self.read_byte().await?;
+        }
+        Ok(buf.len())
     }
 }
